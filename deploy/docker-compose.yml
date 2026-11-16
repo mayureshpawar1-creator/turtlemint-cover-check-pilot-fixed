@@ -1,0 +1,51 @@
+# One-server pilot (e.g. a small VM in AWS Mumbai): database + app + automatic HTTPS.
+#   1. Point your domain (e.g. covercheck.turtlemint.com) at the server's IP.
+#   2. cp deploy/.env.production.example deploy/.env.production   → fill it in
+#   3. docker compose -f deploy/docker-compose.yml up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cover_check
+      POSTGRES_USER: cover_check
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in deploy/.env}
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cover_check -d cover_check"]
+      interval: 5s
+      retries: 20
+
+  app:
+    build: ..
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgres://cover_check:${DB_PASSWORD}@db:5432/cover_check
+    volumes:
+      - docs:/app/backend/.data   # only used when STORAGE_DRIVER=local
+      - ./exports:/app/exports    # telecaller sheets appear in deploy/exports on the server
+    depends_on:
+      db: { condition: service_healthy }
+
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [app]
+
+  # Nightly database backup kept 14 days on the server — also snapshot the disk or copy these off-box.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment: { PGPASSWORD: "${DB_PASSWORD}" }
+    volumes: [backups:/backups]
+    entrypoint: ["sh", "-c", "while true; do pg_dump -h db -U cover_check -Fc cover_check > /backups/cc-$$(date +%F).dump; find /backups -mtime +14 -delete; sleep 86400; done"]
+    depends_on: [db]
+
+volumes: { dbdata: {}, docs: {}, caddydata: {}, backups: {} }

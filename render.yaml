@@ -1,0 +1,84 @@
+# Cover Check — Render deployment template
+#
+# This configuration fails closed until storage, messaging, and advisory approval secrets/settings
+# are configured. Turtlemint IT/Infosec must approve Supabase processing, access, retention, and incident response
+# before any real customer policy documents are uploaded.
+services:
+  - type: web
+    name: turtlemint-cover-check-pilot
+    runtime: docker
+    plan: starter
+    healthCheckPath: /readyz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: require
+      - key: LINK_TOKEN_SECRET
+        sync: false
+      - key: AGENT_API_KEY
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: WHATSAPP_PROVIDER
+        sync: false
+      - key: AISENSY_API_KEY
+        sync: false
+      - key: AISENSY_OTP_CAMPAIGN
+        sync: false
+      - key: AISENSY_SUMMARY_CAMPAIGN
+        sync: false
+      - key: GUPSHUP_API_KEY
+        sync: false
+      - key: GUPSHUP_APP_NAME
+        value: turtlemint
+      - key: GUPSHUP_SOURCE_NUMBER
+        sync: false
+      - key: GUPSHUP_OTP_TEMPLATE_ID
+        sync: false
+      - key: WA_SUMMARY_TEMPLATE_ID
+        sync: false
+      - key: EXOTEL_API_KEY
+        sync: false
+      - key: EXOTEL_API_TOKEN
+        sync: false
+      - key: EXOTEL_ACCOUNT_SID
+        sync: false
+      - key: EXOTEL_SENDER_ID
+        sync: false
+      - key: EXOTEL_DLT_ENTITY_ID
+        sync: false
+      - key: EXOTEL_DLT_TEMPLATE_ID
+        sync: false
+      - key: EXOTEL_ENDPOINT
+        sync: false
+      - key: EXTRACTOR
+        value: manual
+      - key: STORAGE_DRIVER
+        value: supabase
+      - key: STORAGE_BUCKET
+        value: cover-check-docs
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DOCUMENT_ENCRYPTION_KEY
+        sync: false
+      - key: ADVISORY_RULES_APPROVED
+        sync: false
+      - key: DATA_PROCESSING_APPROVED
+        sync: false
+      - key: DOC_RETENTION_DAYS
+        sync: false
+      - key: NOTICE_VERSION
+        value: pilot-v1
+      - key: WEB_DIST
+        value: /app/frontend/dist

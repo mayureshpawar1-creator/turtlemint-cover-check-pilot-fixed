@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/dist-prototype
+**/.data
+**/.env
+**/.env.*
+!**/.env.example
+exports
+.vscode
+*.zip

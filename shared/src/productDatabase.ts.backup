@@ -1,0 +1,553 @@
+/**
+ * Product database containing real insurance products with detailed information.
+ * This database is used by the recommendation engine to suggest actual products
+ * that users can purchase, with real pricing, coverage details, and justification.
+ */
+
+export interface InsuranceProduct {
+  id: string;
+  name: string;
+  insurer: string;
+  type: 'family_floater' | 'individual' | 'senior_citizen' | 'super_top_up' | 'critical_illness' | 'term_life';
+  // Coverage details
+  minCoverageLakh: number;
+  maxCoverageLakh: number;
+  // Pricing (annual premium in INR for base coverage)
+  basePremiumInr: number;
+  premiumPerLakhInr: number; // Additional premium per lakh of coverage
+  // Key features
+  waitingPeriodMonths: number; // Initial waiting period
+  preExistingDiseaseWaitMonths: number; // Wait for pre-existing conditions
+  roomRentCover: 'actual' | '1_percent' | '2_percent' | 'upto_rs' | 'not_applicable'; // Room rent coverage type
+  roomRentLimit: number | null; // If upto_rs, this is the limit in Rs/day
+  icuChargesCover: boolean; // ICU charges covered
+  ambulanceLimit: number | null; // Ambulance cover limit
+  dayCareProcedures: number; // Number of day care procedures covered
+  ailmentCover: number; // Number of ailments/diseases covered
+  renewability: 'lifelong' | 'upto_age'; // Renewability terms
+  maxRenewalAge: number | null; // If upto_age, this is the max age
+  // Network and claims
+  networkHospitals: number; // Number of network hospitals
+  cashlessClaimRatio: number; // Percentage of claims settled cashless
+  claimSettlementRatio: number; // Overall claim settlement percentage (IRDAI)
+  // Additional benefits
+  noClaimBonus: boolean; // NCB available
+  restoreBenefit: boolean; // Restore benefit available
+  domiciliaryHospitalization: boolean; // Domiciliary hospitalization cover
+  organDonorExpenses: boolean; // Organ donor transplant expenses
+  airAmbulanceCover: boolean; // Air ambulance cover
+  // Eligibility
+  minEntryAge: number;
+  maxEntryAge: number;
+  minSumInsuredLakh: number;
+  maxSumInsuredLakh: number;
+  // Product-specific notes
+  notes: string[];
+  // Validation/source
+  validatedByIRDAI: boolean;
+  sourceUrl: string;
+  lastUpdated: string; // ISO date string
+}
+
+/**
+ * Real insurance products database - Sample data for demonstration
+ * In production, this would come from a dynamic product service or API
+ */
+export const REAL_INSURANCE_PRODUCTS: InsuranceProduct[] = [
+  {
+    id: 'icici_lombard_health_advantage',
+    name: 'Health Advantage Plus',
+    insurer: 'ICICI Lombard',
+    type: 'family_floater',
+    minCoverageLakh: 3,
+    maxCoverageLakh: 50,
+    basePremiumInr: 8500, // For 3L coverage
+    premiumPerLakhInr: 2200,
+    waitingPeriodMonths: 30,
+    preExistingDiseaseWaitMonths: 48,
+    roomRentCover: 'actual',
+    icuChargesCover: true,
+    ambulanceLimit: 2000,
+    dayCareProcedures: 520,
+    ailmentCover: 840,
+    renewability: 'lifelong',
+    networkHospitals: 4800,
+    cashlessClaimRatio: 85,
+    claimSettlementRatio: 88,
+    noClaimBonus: true,
+    restoreBenefit: true,
+    domiciliaryHospitalization: true,
+    organDonorExpenses: true,
+    airAmbulanceCover: true,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 3,
+    maxSumInsuredLakh: 50,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Includes coverage for modern treatments like robotic surgeries',
+      'Offers wellness benefits and discount on renewals',
+      'Avail tax benefits under Section 80D of Income Tax Act'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.icicilombard.com/health-insurance/health-advantage-plus',
+    lastUpdated: '2024-01-15'
+  },
+  {
+    id: 'star_health_family_optima',
+    name: 'Family Health Optima',
+    insurer: 'Star Health',
+    type: 'family_floater',
+    minCoverageLakh: 2,
+    maxCoverageLakh: 25,
+    basePremiumInr: 7200, // For 2L coverage
+    premiumPerLakhInr: 1900,
+    waitingPeriodMonths: 30,
+    preExistingDiseaseWaitMonths: 36,
+    roomRentCover: '1_percent',
+    icuChargesCover: true,
+    ambulanceLimit: 1500,
+    dayCareProcedures: 147,
+    ailmentCover: 127,
+    renewability: 'lifelong',
+    networkHospitals: 9800,
+    cashlessClaimRatio: 92,
+    claimSettlementRatio: 91,
+    noClaimBonus: true,
+    restoreBenefit: false,
+    domiciliaryHospitalization: true,
+    organDonorExpenses: true,
+    airAmbulanceCover: false,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 2,
+    maxSumInsuredLakh: 25,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Special coverage for bariatric surgery',
+      'Includes mental illness coverage',
+      'No sub-limits on cataract and joint replacement surgeries'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.starhealth.in/family-health-optima-insurance',
+    lastUpdated: '2024-01-10'
+  },
+  {
+    id: 'star_super_surplus',
+    name: 'Super Surplus',
+    insurer: 'Star Health',
+    type: 'super_top_up',
+    minCoverageLakh: 5,
+    maxCoverageLakh: 50,
+    basePremiumInr: 2800, // For 5L coverage with 3L deductible
+    premiumPerLakhInr: 650,
+    waitingPeriodMonths: 90,
+    preExistingDiseaseWaitMonths: 90,
+    roomRentCover: 'actual',
+    icuChargesCover: true,
+    ambulanceLimit: 2000,
+    dayCareProcedures: 150,
+    ailmentCover: 138,
+    renewability: 'lifelong',
+    networkHospitals: 9800,
+    cashlessClaimRatio: 90,
+    claimSettlementRatio: 89,
+    noClaimBonus: true,
+    restoreBenefit: true,
+    domiciliaryHospitalization: true,
+    organDonorExpenses: true,
+    airAmbulanceCover: true,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 5,
+    maxSumInsuredLakh: 50,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Available with deductible options from 3L to 10L',
+      'Can be bought over any existing base policy',
+      'Includes coverage for modern treatments'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.starhealth.in/super-surplus-top-up-insurance',
+    lastUpdated: '2024-01-12'
+  },
+  {
+    id: 'hdfc_erc_health_suraksha',
+    name: 'Health Suraksha',
+    insurer: 'HDFC ERGO',
+    type: 'individual',
+    minCoverageLakh: 1,
+    maxCoverageLakh: 30,
+    basePremiumInr: 4200, // For 1L coverage
+    premiumPerLakhInr: 1800,
+    waitingPeriodMonths: 30,
+    preExistingDiseaseWaitMonths: 36,
+    roomRentCover: 'actual',
+    icuChargesCover: true,
+    ambulanceLimit: 1500,
+    dayCareProcedures: 535,
+    ailmentCover: 700,
+    renewability: 'lifelong',
+    networkHospitals: 8200,
+    cashlessClaimRatio: 83,
+    claimSettlementRatio: 80,
+    noClaimBonus: true,
+    restoreBenefit: true,
+    domiciliaryHospitalization: true,
+    organDonorExpenses: true,
+    airAmbulanceCover: true,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 1,
+    maxSumInsuredLakh: 30,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Includes coverage for Ayush treatments',
+      'Offers international second opinion benefit',
+      'Covers robotic surgeries and modern treatments'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.hdfcergo.com/health-suraksha',
+    lastUpdated: '2024-01-08'
+  },
+  {
+    id: 'max_bupa_heartbeat',
+    name: 'Heartbeat Family First',
+    insurer: 'Max Bupa',
+    type: 'family_floater',
+    minCoverageLakh: 3,
+    maxCoverageLakh: 50,
+    basePremiumInr: 9100, // For 3L coverage
+    premiumPerLakhInr: 2400,
+    waitingPeriodMonths: 60,
+    preExistingDiseaseWaitMonths: 48,
+    roomRentCover: 'actual',
+    icuChargesCover: true,
+    ambulanceLimit: 2000,
+    dayCareProcedures: 527,
+    ailmentCover: 647,
+    renewability: 'lifelong',
+    networkHospitals: 4500,
+    cashlessClaimRatio: 82,
+    claimSettlementRatio: 81,
+    noClaimBonus: true,
+    restoreBenefit: true,
+    domiciliaryHospitalization: true,
+    organDonorExpenses: true,
+    airAmbulanceCover: true,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 3,
+    maxSumInsuredLakh: 50,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Includes coverage for infertility treatment',
+      'Offers nutrition and wellness coaching',
+      'Covers robotic surgeries and modern treatments'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.maxbupa.com/health-insurance/family-first',
+    lastUpdated: '2024-01-11'
+  },
+  {
+    id: 'bajaj_allianz_health_guard',
+    name: 'Health Guard',
+    insurer: 'Bajaj Allianz',
+    type: 'family_floater',
+    minCoverageLakh: 1,
+    maxCoverageLakh: 50,
+    basePremiumInr: 3800, // For 1L coverage
+    premiumPerLakhInr: 1600,
+    waitingPeriodMonths: 60,
+    preExistingDiseaseWaitMonths: 60,
+    roomRentCover: '2_percent',
+    icuChargesCover: true,
+    ambulanceLimit: 1500,
+    dayCareProcedures: 540,
+    ailmentCover: 138,
+    renewability: 'lifelong',
+    networkHospitals: 6500,
+    cashlessClaimRatio: 79,
+    claimSettlementRatio: 78,
+    noClaimBonus: true,
+    restoreBenefit: true,
+    domiciliaryHospitalization: true,
+    organDonorExpenses: true,
+    airAmbulanceCover: true,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 1,
+    maxSumInsuredLakh: 50,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Offers global coverage for emergency hospitalization',
+      'Includes mental illness coverage',
+      'Covers modern treatments like stem cell therapy'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.bajajallianz.com/health-insurance/health-guarantee.html',
+    lastUpdated: '2024-01-09'
+  },
+  {
+    id: 'star_critical_illness',
+    name: 'CritiCare Plus',
+    insurer: 'Star Health',
+    type: 'critical_illness',
+    minCoverageLakh: 5,
+    maxCoverageLakh: 50,
+    basePremiumInr: 6500, // For 5L coverage
+    premiumPerLakhInr: 1100,
+    waitingPeriodMonths: 90,
+    preExistingDiseaseWaitMonths: 180,
+    roomRentCover: 'not_applicable',
+    icuChargesCover: true,
+    ambulanceLimit: null,
+    dayCareProcedures: 0,
+    ailmentCover: 20, // Major critical illnesses
+    renewability: 'lifelong',
+    networkHospitals: 0, // Lump sum payment
+    cashlessClaimRatio: 100, // Direct payment
+    claimSettlementRatio: 93,
+    noClaimBonus: false,
+    restoreBenefit: false,
+    domiciliaryHospitalization: false,
+    organDonorExpenses: false,
+    airAmbulanceCover: false,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 5,
+    maxSumInsuredLakh: 50,
+    roomRentLimit: null,
+    maxRenewalAge: null,
+    notes: [
+      'Covers 20 major critical illnesses including cancer, heart attack, stroke',
+      'Lump sum payment on diagnosis',
+      'Can be used for any purpose - treatment, debt repayment, income replacement'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.starhealth.in/critical-illness-insurance',
+    lastUpdated: '2024-01-13'
+  },
+  {
+    id: 'hdfc_erc_click2protect',
+    name: 'Click 2 Protect Super',
+    insurer: 'HDFC ERGO',
+    type: 'term_life',
+    minCoverageLakh: 10,
+    maxCoverageLakh: 200,
+    basePremiumInr: 6800, // For 10L coverage, 30 year term
+    premiumPerLakhInr: 350,
+    waitingPeriodMonths: 0,
+    preExistingDiseaseWaitMonths: 0,
+    roomRentCover: 'not_applicable',
+    icuChargesCover: true,
+    ambulanceLimit: null,
+    dayCareProcedures: 0,
+    ailmentCover: 0,
+    renewability: 'upto_age',
+    maxRenewalAge: 65,
+    roomRentLimit: null,
+    networkHospitals: 0,
+    cashlessClaimRatio: 100,
+    claimSettlementRatio: 86,
+    noClaimBonus: false,
+    restoreBenefit: false,
+    domiciliaryHospitalization: false,
+    organDonorExpenses: false,
+    airAmbulanceCover: false,
+    minEntryAge: 18,
+    maxEntryAge: 65,
+    minSumInsuredLakh: 10,
+    maxSumInsuredLakh: 200,
+    notes: [
+      'Level term plan - premium remains same throughout policy term',
+      'Includes terminal illness benefit',
+      'Online purchase with instant policy issuance'
+    ],
+    validatedByIRDAI: true,
+    sourceUrl: 'https://www.hdfcergo.com/click2protect-super',
+    lastUpdated: '2024-01-07'
+  }
+];
+
+/**
+ * Get products filtered by type and coverage requirements
+ */
+export function getProductsByTypeAndCoverage(
+  type: InsuranceProduct['type'],
+  minCoverageLakh: number,
+  maxCoverageLakh: number = Infinity
+): InsuranceProduct[] {
+  return REAL_INSURANCE_PRODUCTS.filter(product =>
+    product.type === type &&
+    product.maxCoverageLakh >= minCoverageLakh &&
+    product.minCoverageLakh <= maxCoverageLakh
+  );
+}
+
+/**
+ * Get products sorted by value (coverage/price ratio) for a given budget
+ */
+export function getProductsByValue(
+  type: InsuranceProduct['type'],
+  targetCoverageLakh: number,
+  maxPremiumInr: number
+): InsuranceProduct[] {
+  const eligibleProducts = getProductsByTypeAndCoverage(
+    type,
+    targetCoverageLakh,
+    targetCoverageLakh * 2 // Allow up to 2x target coverage
+  );
+
+  // Calculate value score (coverage per rupee of premium)
+  const scoredProducts = eligibleProducts.map(product => {
+    const premiumForTargetCoverage = product.basePremiumInr +
+      ((targetCoverageLakh - product.minCoverageLakh) * product.premiumPerLakhInr);
+
+    // Avoid division by zero
+    const valueScore = premiumForTargetCoverage > 0 ?
+      targetCoverageLakh / premiumForTargetCoverage : 0;
+
+    return {
+      ...product,
+      _valueScore: valueScore,
+      _premiumForTarget: premiumForTargetCoverage
+    };
+  });
+
+  // Filter by budget and sort by value (descending)
+  return scoredProducts
+    .filter(product => product._premiumForTarget <= maxPremiumInr)
+    .sort((a, b) => b._valueScore - a._valueScore)
+    .map(({ _valueScore, _premiumForTarget, ...rest }) => rest);
+}
+
+/**
+ * Get justification for why a product is recommended based on user profile
+ */
+export function getProductJustification(
+  product: InsuranceProduct,
+  userProfile: {
+    ageBand: string;
+    incomeBand: string;
+    cityTier: string;
+    hasFamily: boolean;
+    hasParents: boolean;
+    healthCondition: string;
+    topConcern: string;
+  }
+): string {
+  const justifications = [];
+
+  // Age-based justification
+  if (userProfile.ageBand === '41_50' || userProfile.ageBand === '51_60' || userProfile.ageBand === '61p') {
+    justifications.push('Designed for your age group with appropriate coverage limits');
+  }
+
+  // Family justification
+  if (userProfile.hasFamily && product.type === 'family_floater') {
+    justifications.push('Covers your entire family under a single plan');
+  } else if (!userProfile.hasFamily && product.type === 'individual') {
+    justifications.push('Individual plan optimized for your personal coverage needs');
+  }
+
+  // Income-based justification
+  if (userProfile.incomeBand === '1_2l' || userProfile.incomeBand === '2lp') {
+    justifications.push('Premium fits well within your income bracket');
+  }
+
+  // City tier justification
+  if (userProfile.cityTier !== 'other' && product.roomRentCover === 'actual') {
+    justifications.includes('Actual room rent coverage suitable for metro healthcare costs') ||
+      justifications.push('Actual room rent coverage suitable for metro healthcare costs');
+  }
+
+  // Health condition justification
+  if (userProfile.healthCondition === 'yes' && product.preExistingDiseaseWaitMonths <= 36) {
+    justifications.push('Reasonable waiting period for pre-existing conditions');
+  }
+
+  // Top concern justification
+  if (userProfile.topConcern === 'savings' && product.noClaimBonus) {
+    justifications.push('No Claim Bonus helps preserve your savings over time');
+  }
+
+  // Product-specific justifications
+  if (product.type === 'super_top_up' && userProfile.hasFamily) {
+    justifications.push('Cost-effective way to enhance existing family coverage');
+  }
+
+  if (product.type === 'critical_illness' && (userProfile.topConcern === 'serious_illness' || userProfile.healthCondition === 'yes')) {
+    justifications.push('Provides lump sum on diagnosis of critical illnesses for financial protection');
+  }
+
+  if (product.type === 'term_life' && userProfile.hasFamily) {
+    justifications.push('Ensures your family\'s financial security in your absence');
+  }
+
+  // Default justification if none specific
+  if (justifications.length === 0) {
+    justifications.push('Well-rounded product offering good coverage at reasonable cost');
+  }
+
+  return justifications.join('. ');
+}
+
+/**
+ * Validate product against IRDAI guidelines
+ */
+export function validateProductAgainstIRDAI(product: InsuranceProduct): {
+  isValid: boolean;
+  issues: string[];
+} {
+  const issues: string[] = [];
+
+  // Basic validations
+  if (product.minEntryAge > product.maxEntryAge) {
+    issues.push('Minimum entry age cannot be greater than maximum entry age');
+  }
+
+  if (product.minSumInsuredLakh > product.maxSumInsuredLakh) {
+    issues.push('Minimum sum insured cannot be greater than maximum sum insured');
+  }
+
+  if (product.basePremiumInr <= 0) {
+    issues.push('Base premium must be positive');
+  }
+
+  if (product.premiumPerLakhInr < 0) {
+    issues.push('Premium per lakh cannot be negative');
+  }
+
+  if (product.waitingPeriodMonths < 0 || product.waitingPeriodMonths > 36) {
+    issues.push('Initial waiting period must be between 0 and 36 months (IRDAI guideline)');
+  }
+
+  if (product.preExistingDiseaseWaitMonths < 0 || product.preExistingDiseaseWaitMonths > 48) {
+    issues.push('Pre-existing disease waiting period must be between 0 and 48 months (IRDAI guideline)');
+  }
+
+  if (product.claimSettlementRatio < 0 || product.claimSettlementRatio > 100) {
+    issues.push('Claim settlement ratio must be between 0 and 100%');
+  }
+
+  if (product.networkHospitals < 0) {
+    issues.push('Number of network hospitals cannot be negative');
+  }
+
+  return {
+    isValid: issues.length === 0,
+    issues
+  };
+}
+
+// Export utility functions
+export { REAL_INSURANCE_PRODUCTS, getProductsByTypeAndCoverage, getProductsByValue, getProductJustification, validateProductAgainstIRDAI };
+export type { InsuranceProduct };
+// Last updated: 2026-10-19

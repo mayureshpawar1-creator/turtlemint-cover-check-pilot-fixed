@@ -1,0 +1,7 @@
+name: Exotel
+values:
+  - key: exotel_api_key
+    value: ''
+  - key: exotel_api_token
+    value: ''
+color: 0

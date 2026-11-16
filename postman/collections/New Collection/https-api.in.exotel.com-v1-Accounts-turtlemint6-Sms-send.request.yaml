@@ -1,0 +1,17 @@
+$kind: http-request
+name: https://api.in.exotel.com/v1/Accounts/turtlemint6/Sms/send
+description: ""
+url: https://api.in.exotel.com/v1/Accounts/turtlemint6/Sms/send
+method: POST
+body:
+  type: urlencoded
+  content:
+    From: EXOSMS
+    To: "7666053559"
+    Body: This is a test message powered by Exotel. Report abuse to +91808891888 -Exotel
+auth:
+  type: basic
+  credentials:
+    username: 93eeb0ab5f9aba1a618a2695a98f6d60dfd83903e5269d68
+    password: 829826d7b5a90d406eb0f96bcfac9adacb1689ab12f59fb2
+order: 1000

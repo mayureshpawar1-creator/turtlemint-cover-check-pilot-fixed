@@ -58,9 +58,9 @@ export const handoffService = (d: Deps) => ({
     const src = await d.repos.leadCards.get(leadId);
     if (!src) throw new AppError('NOT_FOUND', 'Lead not found');
     const answers: QuizAnswers = {};
-    for (const k of ['situation', 'members', 'age_band', 'income_band', 'city_tier', 'eldest_age', 'children_count', 'parents_age_band', 'sum_insured_band', 'family_in_group_cover',
+    for (const k of ['situation', 'members', 'age_band', 'city_tier', 'eldest_age', 'children_count', 'parents_age_band', 'sum_insured_band', 'family_in_group_cover',
       'health_condition', 'policy_age_band', 'job_exit_cover', 'room_rent_limit', 'room_rent_note', 'top_concern', 'renewal_window',
-      'personal_policy_besides_group', 'start_timing', 'adults_count', 'parents_count'] as const) if (src[k] !== null && src[k] !== undefined) (answers as any)[k] = src[k];
+      'personal_policy_besides_group', 'start_timing', 'adults_count', 'parents_count', 'premium_comfort', 'other_protection_interest'] as const) if (src[k] !== null && src[k] !== undefined) (answers as any)[k] = src[k];
     const findings: Finding[] = await d.repos.findings.forLead(leadId);
     const uploadStatus = !src.doc_id ? 'none' : src.doc_status === 'ready' ? 'ready' : src.doc_status === 'failed' ? 'failed' : 'processing';
     return buildLeadCard({

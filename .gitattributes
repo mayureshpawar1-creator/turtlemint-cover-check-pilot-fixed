@@ -1,0 +1,6 @@
+# Store text files with LF in the repository; Windows checkouts still get CRLF in the working tree.
+* text=auto
+*.sh text eol=lf
+*.pdf binary
+*.png binary
+*.zip binary

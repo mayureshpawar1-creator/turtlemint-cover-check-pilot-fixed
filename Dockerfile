@@ -13,10 +13,10 @@ COPY frontend/package.json frontend/
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # ---- 2. test + build the web app
+# Backend tests need PostgreSQL, which a docker build does not have; they run in CI (.github/workflows/ci.yml).
 FROM deps AS build
 COPY . .
 RUN npm test -w shared \
- && npm test -w backend \
  && npm run typecheck -w backend \
  && npm run build -w frontend
 

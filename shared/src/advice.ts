@@ -25,18 +25,17 @@ export interface Advice {
   currentLabel: string | null;
   shortfallLakh: number | null;
   structure: CoverPart[];          // how to build the suggested cover
-  bills: BillBar[] | null;         // A only, when income given
+  bills: BillBar[] | null;         // v3–v4 "months of income" chart; v5 no longer asks income, so always null
   whyNow: string | null;
 }
 
-/** Monthly take-home midpoints (₹) — for the "months of income" chart only. */
-const INCOME_MID: Record<string, number> = { lt25k: 20_000, '25_50k': 37_500, '50k_1l': 75_000, '1_2l': 150_000, '2lp': 250_000 };
 export const SCENARIO_BILLS_LAKH = [2, 5, 10];
 
 /**
  * Cover rule v1 (VALIDATION REQUIRED — product/actuarial to tune):
- * ₹10 L for one adult · +₹5 L if spouse or children share it · +₹5 L in a metro (or unknown city) · +₹5 L if 41+ ·
- * +₹10 L if take-home is above ₹1 lakh a month. Parents over 60 get their own plan, not added to the family's.
+ * ₹10 L for one adult · +₹5 L if spouse or children share it · +₹5 L in a metro (or unknown city) · +₹5 L if 41+.
+ * v5 removed the +₹10 L for take-home above ₹1 lakh a month (income is no longer asked). Parents 60+ get their own plan.
+ * Superseded by coverScenarios.ts (claims-based) once SUM_INSURED_METHOD.md is approved — roadmap step 1.5.
  */
 export function suggestedCoverLakh(a: QuizAnswers): number {
   const m = a.members ?? [];
@@ -44,7 +43,6 @@ export function suggestedCoverLakh(a: QuizAnswers): number {
   if (m.includes('spouse') || m.includes('children')) l += 5;
   if (a.city_tier !== 'other') l += 5;
   if (a.age_band === '41_50' || a.age_band === '51_60' || a.age_band === '61p') l += 5;
-  if (a.income_band === '1_2l' || a.income_band === '2lp') l += 10;
   return l;
 }
 
@@ -71,11 +69,9 @@ export function buildAdvice(a: QuizAnswers): Advice {
 
   // ---------------------------------------------------------------- A: no cover yet
   if (a.situation === 'none') {
-    const income = a.income_band ? INCOME_MID[a.income_band] : undefined;
-    const bills = income ? SCENARIO_BILLS_LAKH.map((b) => ({ billLakh: b, months: Math.round((b * 100_000) / income) })) : null;
     const gaps: AdviceGap[] = [
       { id: 'no_cover', title: 'Every hospital bill is yours today', next: 'advisor',
-        impact: bills ? `A ${lakh(5)} stay would take ${bills[1]!.months} months of your pay.` : `A ${lakh(5)} stay would come out of your savings.` },
+        impact: `A ${lakh(5)} stay would come out of your savings.` },
       { id: 'waiting', title: 'The waiting clock hasn’t started', next: 'plans',
         impact: `Existing illnesses can wait up to ${B.pedWaitMaxMonths} months, counted from the day you buy.` },
     ];
@@ -87,7 +83,7 @@ export function buildAdvice(a: QuizAnswers): Advice {
       sub: 'Based on who depends on you, your age and where you live.',
       wins: [], gaps: gaps.slice(0, 3),
       suggestedLakh: suggested, currentLakh: null, currentLabel: null, shortfallLakh: suggested,
-      structure: structureFor(suggested, a, null), bills,
+      structure: structureFor(suggested, a, null), bills: null,
       whyNow: 'Premiums are lowest at the age you are today, and waiting periods start only once you buy.',
     };
   }

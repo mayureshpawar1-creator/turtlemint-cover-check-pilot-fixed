@@ -1,4 +1,5 @@
 import type { Deps } from './deps.js';
+import type { ExpiredFileCursor } from '../repositories/documentRepository.js';
 
 export const retentionService = (
   d: Pick<Deps, 'repos' | 'store'>,
@@ -8,7 +9,7 @@ export const retentionService = (
 ) => ({
   /** Remove expired objects before purging their database rows and facts. */
   async sweep(): Promise<void> {
-    let after: { retentionUntil: Date; docId: string } | undefined;
+    let after: ExpiredFileCursor | undefined;
     for (;;) {
       const expired = await d.repos.documents.expiredFiles(after);
       if (!expired.length) return;

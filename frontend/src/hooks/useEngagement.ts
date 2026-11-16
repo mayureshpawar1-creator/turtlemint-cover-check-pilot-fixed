@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EngagementEvent, ScreenId } from '@cover-check/shared/src/engagement';
+import { toClientEvent, type EventName } from '@cover-check/shared';
 import { calculateEngagementScore, isHotLead as calculateHotLead, generateCallerInsights, eventsToCallerInsight } from '@cover-check/shared/src/engagement';
 
 /**
@@ -49,12 +50,10 @@ export function useEngagement(
     }
   }, [engagementEvents]);
 
-  // Track screen entry
-  const trackScreenEntry = useCallback((screenId: ScreenId) => {
+  // Track screen entry. The flow (state/flow.tsx) sends the single `screen_viewed` event; this only starts the timer.
+  const trackScreenEntry = useCallback((_screenId: ScreenId) => {
     screenEntryTimeRef.current = Date.now();
-    // Notify backend of screen engagement start (backward compatibility)
-    api.event('screen_viewed', screenId);
-  }, [api]);
+  }, []);
 
   // Track screen exit
   const trackScreenExit = useCallback((screenId: ScreenId) => {
@@ -62,8 +61,8 @@ export function useEngagement(
     const timeSpent = exitTime - screenEntryTimeRef.current;
 
     if (timeSpent > 0) {
-      // Notify backend of screen engagement completion (backward compatibility)
-      api.event('screen_viewed', screenId);
+      // One exit event with the time spent (previously a second, duplicate `screen_viewed`)
+      api.event('screen_exited', screenId, { timeSpentMs: timeSpent });
 
       // Add to local events for scoring
       setEngagementEvents(prev => [
@@ -88,17 +87,19 @@ export function useEngagement(
   }, []);
 
   // Track custom engagement events
-  const trackEvent = useCallback((eventName: string, screenId: ScreenId | undefined, props: Record<string, string | number | boolean | null> = {}) => {
+  const trackEvent = useCallback((eventName: EventName, screenId: ScreenId | undefined, props: Record<string, string | number | boolean | null> = {}) => {
     const timestamp = Date.now();
 
-    // Send to backend
-    api.event(eventName as any, screenId, props);
+    // Send to backend: interactions only. Milestones (quiz_completed, call_requested, …) are already recorded by the
+    // API; resending them double-counted the funnel. A "next action" click goes as `cta_clicked`.
+    const sent = toClientEvent(eventName);
+    if (sent) api.event(sent, screenId, props);
 
     // Store locally for scoring
     setEngagementEvents(prev => [
       ...prev,
       {
-        name: eventName as any,
+        name: eventName,
         screenId: screenId ?? undefined,
         timestamp,
         props

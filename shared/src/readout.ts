@@ -4,7 +4,7 @@
  */
 import type { AnswerField, Finding, QuizAnswers, Readout } from './types';
 import type { FindingCategory, Severity } from './enums';
-import { UNSURE_FIELDS } from './quiz';
+import { hasParents60, UNSURE_FIELDS } from './quiz';
 
 export const RULE_VERSION = 'v1-2026-10-03';
 
@@ -17,8 +17,7 @@ export interface ReadoutRule {
   when: (a: QuizAnswers) => boolean;
 }
 
-const parentsOver60 = (a: QuizAnswers) =>
-  (a.members ?? []).includes('parents') && (a.parents_age_band === '60_70' || a.parents_age_band === '70p');
+const parentsOver60 = hasParents60; // v5 asks parents' age, so R6 can now fire (B5)
 
 export const READOUT_RULES: ReadoutRule[] = [
   { id: 'R1', category: 'room_rent', severity: 'review', short: 'room rent',

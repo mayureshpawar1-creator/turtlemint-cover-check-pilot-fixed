@@ -1,5 +1,5 @@
 import type {
-  Bootstrap, CaptureInput, CoverSummary, DocumentStatusView, EventName, HandoffInput, Language, LeadCard, LeadState,
+  Bootstrap, CaptureInput, ClientEventName, CoverSummary, DocumentStatusView, HandoffInput, Language, LeadCard, LeadState,
   PolicyFactKey, Priority, QuizAnswers, Readout, ScreenId, Slot, PlanRec, PlanType,
 } from '@cover-check/shared';
 
@@ -8,7 +8,8 @@ export interface ApiError { code: string; message: string; details?: unknown }
 /** The single seam between UI and server. HttpApi talks to the backend; MockApi powers the prototype. */
 export interface CoverCheckApi {
   bootstrap(): Promise<Bootstrap & { slots: Slot[] }>;
-  event(name: EventName, screenId?: ScreenId, props?: Record<string, string | number | boolean | null>): void;
+  /** Browser interaction events only; server milestones are recorded by the API itself. */
+  event(name: ClientEventName, screenId?: ScreenId, props?: Record<string, string | number | boolean | null>): void;
   startQuiz(language: Language): Promise<{ sessionId: string }>;
   saveScreen(sessionId: string, screenId: ScreenId, answers: QuizAnswers, timeOnScreenMs: number | null): Promise<{ answers: QuizAnswers; next: string }>;
   completeQuiz(sessionId: string): Promise<Readout>;

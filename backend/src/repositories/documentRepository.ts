@@ -9,6 +9,7 @@ export interface DocumentRow {
 }
 
 export interface ExtractedFact { key: PolicyFactKey; value: unknown | null; sourcePage: number | null; confidence: number | null }
+/** retention_until is returned as Postgres text so the keyset cursor keeps microsecond precision (a JS Date would truncate to ms). */
 export interface ExpiredFile { doc_id: string; file_ref: string; retention_until: string }
 export interface ExpiredFileCursor { retentionUntil: string; docId: string }
 
@@ -101,12 +102,12 @@ export const documentRepository = (db: Queryable) => ({
   async expiredFiles(after?: ExpiredFileCursor): Promise<ExpiredFile[]> {
     const { rows } = after
       ? await db.query<ExpiredFile>(
-        `SELECT doc_id, file_ref, retention_until FROM policy_document
+        `SELECT doc_id, file_ref, retention_until::text AS retention_until FROM policy_document
          WHERE deleted_ts IS NULL AND retention_until < now()
            AND (retention_until, doc_id) > ($1::timestamptz, $2::uuid)
          ORDER BY retention_until ASC, doc_id ASC LIMIT 100`, [after.retentionUntil, after.docId])
       : await db.query<ExpiredFile>(
-        `SELECT doc_id, file_ref, retention_until FROM policy_document
+        `SELECT doc_id, file_ref, retention_until::text AS retention_until FROM policy_document
          WHERE deleted_ts IS NULL AND retention_until < now()
          ORDER BY retention_until ASC, doc_id ASC LIMIT 100`);
     return rows;

@@ -14,10 +14,11 @@ export interface SessionRow {
 
 /** Columns in quiz_answer — whitelist so no user key ever becomes SQL. */
 const COLUMNS: AnswerField[] = [
-  'situation', 'members', 'age_band', 'income_band', 'city_tier', 'eldest_age', 'children_count', 'parents_age_band', 'sum_insured_band', 'family_in_group_cover',
+  'situation', 'members', 'age_band', 'city_tier', 'eldest_age', 'children_count', 'parents_age_band', 'sum_insured_band', 'family_in_group_cover',
   'health_condition', 'condition_tags', 'policy_age_band', 'job_exit_cover', 'room_rent_limit', 'room_rent_note',
   'top_concern', 'renewal_window', 'personal_policy_besides_group', 'start_timing', 'adults_count', 'parents_count',
-];
+  'premium_comfort', 'other_protection_interest',
+]; // v5: income_band is neither read nor written (old rows keep theirs until the retention decision)
 const ARRAY_CAST: Partial<Record<AnswerField, string>> = { members: '::member_t[]', condition_tags: '::condition_tag_t[]' };
 
 export const quizRepository = (db: Queryable) => ({

@@ -8,7 +8,7 @@ import { apiRouter } from './http/routes.js';
 import { errorHandler } from './http/middleware.js';
 import type { Deps } from './services/deps.js';
 
-export function createApp(d: Deps, opts: { agentKey: string; corsOrigin: string; webDist?: string; webhookSecret?: string; plainHttp?: boolean }) {
+export function createApp(d: Deps, opts: { agentKey: string; corsOrigin: string; webDist?: string; webhookSecret?: string; plainHttp?: boolean; sessionHours?: number }) {
   const app = express();
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
@@ -16,13 +16,13 @@ export function createApp(d: Deps, opts: { agentKey: string; corsOrigin: string;
   // makes the app load as a blank page when opened over plain http on an office network (e.g. http://10.1.2.3:8080)
   // for an internal test. `plainHttp` is only ever true when PUBLIC_BASE_URL is http:// (production refuses to start that way).
   app.use(helmet(opts.plainHttp ? { contentSecurityPolicy: { directives: { 'upgrade-insecure-requests': null } } } : undefined));
-  app.use(cors({ origin: opts.corsOrigin, allowedHeaders: ['authorization', 'content-type', 'x-agent-key', 'x-agent-id', 'x-agent-name'] }));
+  app.use(cors({ origin: opts.corsOrigin, credentials: true, allowedHeaders: ['authorization', 'content-type', 'x-agent-key', 'x-agent-id', 'x-agent-name'] }));
   app.use(express.json({ limit: '64kb' }));
   app.use('/api/v1', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: 'draft-7', legacyHeaders: false }));
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
   // Ready only when the database answers — load balancers use this before sending traffic.
   app.get('/readyz', (_req, res) => { d.repos.events.ping().then(() => res.json({ ok: true }), () => res.status(503).json({ ok: false })); });
-  app.use('/api/v1', apiRouter(d, opts.agentKey, { webhookSecret: opts.webhookSecret }));
+  app.use('/api/v1', apiRouter(d, opts.agentKey, { webhookSecret: opts.webhookSecret, sessionHours: opts.sessionHours, secureCookies: !opts.plainHttp }));
   app.use('/api', (_req: Request, res: Response) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } }));
 
   // Same-domain web app: one address for the WhatsApp button, no CORS, cookies and tokens stay first-party.

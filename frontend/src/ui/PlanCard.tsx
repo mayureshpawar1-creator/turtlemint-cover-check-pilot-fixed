@@ -1,5 +1,5 @@
 /** One "plan that fits" card: why it fits them, two plain facts, then Turtlemint page + advisor. */
-import type { PlanRec } from '@cover-check/shared';
+import { attributeUrl, type PlanRec } from '@cover-check/shared';
 import { IconHeadset, IconLink, IconSparkle } from './icons';
 import { useFlow } from '../state/flow';
 import type { EngagementEvent } from '@cover-check/shared/src/engagement';
@@ -13,7 +13,7 @@ export function PlanCard({ rec, origin, onClick }: { rec: PlanRec; origin: 'quiz
       <ul>{rec.points.map((p) => <li key={p}>{p}</li>)}</ul>
       <div className="plan__actions">
         {/* Opens Turtlemint's plan page; UTM tags attribute the visit to Cover Check. */}
-        <a className="btn btn--secondary" href={rec.url} target="_blank" rel="noopener"
+        <a className="btn btn--secondary" href={attributeUrl(rec.url, s.attribution)} target="_blank" rel="noopener"
           onClick={() => {
             engagement.trackEvent('tool_used', origin as any, {
               toolType: 'external_link',

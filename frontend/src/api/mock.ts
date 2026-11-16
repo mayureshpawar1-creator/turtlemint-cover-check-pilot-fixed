@@ -96,7 +96,8 @@ export function createMockBackend(init: { door: Door; mobile?: string }) {
       await wait(150);
       log('link_clicked');
       return { leadId: 'demo-lead', sessionId: s.sessionId, door: s.door, maskedMobile: maskMobile(s.mobile), mobileVerified: s.mobileVerified,
-        language: s.language, firstName: s.firstName ?? undefined, answers: s.answers, noticeVersion: 'v1', slots: callSlots(now()) };
+        language: s.language, firstName: s.firstName ?? undefined, answers: s.answers, noticeVersion: 'v1', slots: callSlots(now()),
+        attribution: { campaignId: 'prototype', variantId: null, channel: 'whatsapp' }, landing: null };
     },
     event: (name, screenId) => log(name, screenId),
     async startQuiz(language) {

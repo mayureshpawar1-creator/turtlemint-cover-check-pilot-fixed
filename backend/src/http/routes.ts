@@ -33,10 +33,10 @@ import { documentService } from '../services/documentService.js';
 import { telecallerSheetService } from '../services/telecallerSheetService.js';
 import { valueService } from '../services/valueService.js';
 import { AppError } from '../services/errors.js';
-import { h, parse, requireAgent, requireLead, safeEqual } from './middleware.js';
+import { h, parse, requireAgent, requireLead, safeEqual, startWebSession } from './middleware.js';
 import * as S from './schemas.js';
 
-export function apiRouter(d: Deps, agentKey: string, opts: { webhookSecret?: string } = {}): Router {
+export function apiRouter(d: Deps, agentKey: string, opts: { webhookSecret?: string; sessionHours?: number; secureCookies?: boolean } = {}): Router {
   const journey = journeyService(d), otp = otpService(d), handoff = handoffService(d), docs = documentService(d), value = valueService(d);
   const upload = multer({ storage: multer.memoryStorage(), limits: { files: d.config.maxFiles, fileSize: d.config.maxFileMb * 1024 * 1024 } });
   const r = Router();
@@ -44,17 +44,40 @@ export function apiRouter(d: Deps, agentKey: string, opts: { webhookSecret?: str
   const agent = requireAgent(agentKey);
 
   // ---------------------------------------------------------------- Rung 1
-  r.get('/link/:token', h(async (req) => {
+  r.get('/link/:token', h(async (req, res) => {
     const ua = req.header('user-agent') ?? '';
     const device = { type: /mobile/i.test(ua) ? 'mobile' : 'desktop', os: /android/i.test(ua) ? 'android' : /iphone|ipad/i.test(ua) ? 'ios' : 'other', browser: ua.slice(0, 120) };
-    const boot = await journey.openLink(req.params.token!, device, req.query as Record<string, string>);
+    const boot = await journey.openLink(req.params.token!, device, req.query as Record<string, string>, req.header('referer') ?? undefined);
+    // 1.7 (S3): from here on the browser uses an HttpOnly session cookie; the app then removes the token from the URL
+    await startWebSession(d, res, boot, { hours: opts.sessionHours ?? 72, secure: opts.secureCookies ?? true });
     return { ...boot, slots: callSlots(d.now()) };
   }));
 
-  r.post('/events', lead, h(async (req) => {
-    const e = parse(S.Event, req.body);
-    await journey.logEvent(req.lead!, e.name, e.screenId, e.props ?? undefined, e.sessionId);
-  }));
+  /** Reload / return visit with the session cookie: same bootstrap, no new click logged. */
+  r.get('/me', lead, h(async (req) => ({ ...(await journey.resume(req.lead!)), slots: callSlots(d.now()) })));
+
+  /**
+   * Browser interaction events. Never fails the page: an unknown name or a server milestone is answered 202 and
+   * recorded in event_reject (name + reason only), so tracking drift shows up in data instead of disappearing.
+   */
+  r.post('/events', lead, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const e = S.Event.safeParse(req.body);
+      if (!e.success) {
+        const body = (req.body ?? {}) as { name?: unknown; screenId?: unknown };
+        const issue = e.error.issues[0];
+        await d.repos.events.reject({
+          name: typeof body.name === 'string' ? body.name : '(missing)',
+          screenId: typeof body.screenId === 'string' ? body.screenId : null,
+          reason: issue ? `${issue.path.join('.') || 'body'}: ${issue.code}` : 'invalid',
+        });
+        res.status(202).json({ ok: true, accepted: false });
+        return;
+      }
+      await journey.logEvent(req.lead!, e.data.name, e.data.screenId, e.data.props ?? undefined, e.data.sessionId);
+      res.status(202).json({ ok: true, accepted: true });
+    } catch (err) { next(err); }
+  });
 
   r.post('/quiz/sessions', lead, h(async (req) => journey.startQuiz(req.lead!, parse(S.StartQuiz, req.body).language)));
 
@@ -119,18 +142,30 @@ export function apiRouter(d: Deps, agentKey: string, opts: { webhookSecret?: str
   // ---------------------------------------------------------------- Ops + webhooks
   r.post('/ops/links', agent, h(async (req) => {
     const b = parse(S.IssueLink, req.body);
-    return { token: d.tokens.issue({ m: b.mobile, d: b.door, c: b.campaignId, cr: b.creativeId, t: b.templateId }, d.now().getTime()) };
+    // 1.3: a link may only name a registered campaign (and one of its variants), so every visit can be attributed.
+    if (b.campaignId && !(await d.repos.campaigns.get(b.campaignId))) throw new AppError('VALIDATION', 'Unknown campaign — register it first (POST /ops/campaigns).');
+    if (b.variantId && (!b.campaignId || !(await d.repos.campaigns.hasVariant(b.campaignId, b.variantId))))
+      throw new AppError('VALIDATION', 'Unknown variant for this campaign.');
+    return { token: d.tokens.issue({ m: b.mobile, d: b.door, c: b.campaignId, cr: b.creativeId, v: b.variantId, t: b.templateId }, d.now().getTime()) };
+  }));
+
+  /** 1.3 campaign registry: create or update a campaign and its variants (landing copy per variant). */
+  r.post('/ops/campaigns', agent, h(async (req) => d.repos.campaigns.upsert(parse(S.CampaignUpsert, req.body))));
+  /** First-touch funnel for one campaign, per variant and day. */
+  r.get('/ops/campaigns/:id/funnel', agent, h(async (req) => {
+    if (!(await d.repos.campaigns.get(req.params.id!))) throw new AppError('NOT_FOUND', 'Campaign not found');
+    return d.repos.campaigns.funnel(req.params.id!);
   }));
 
   /**
    * Inbound WhatsApp (Gupshup payload shape). "STOP" withdraws contact + WhatsApp consent.
-   * Protected by a shared secret (WEBHOOK_SECRET): put it in the callback URL you give the BSP
-   * (…/api/v1/webhooks/whatsapp?secret=…) or send it as the x-webhook-secret header.
+   * Protected by a shared secret (WEBHOOK_SECRET) sent as the x-webhook-secret header. 1.7 (S7): no longer accepted in
+   * the URL, where it would end up in proxy and access logs.
    * Production refuses to start without one, so strangers cannot withdraw other people's consent.
    */
   r.post('/webhooks/whatsapp', h(async (req) => {
     if (opts.webhookSecret) {
-      const given = req.header('x-webhook-secret') ?? (typeof req.query.secret === 'string' ? req.query.secret : '');
+      const given = req.header('x-webhook-secret') ?? '';
       if (!safeEqual(given, opts.webhookSecret)) throw new AppError('FORBIDDEN', 'Not allowed');
     }
     const text: string = req.body?.payload?.payload?.text ?? '';

@@ -7,6 +7,7 @@ import type { Language, LeadState, Priority, RequestedAction, Topic } from './en
 import type { Finding, LeadCard, QuizAnswers } from './types';
 import { listMembers, POLICY_AGE_LABEL, RENEWAL_LABEL, ruleShortLabel, SUM_LABEL } from './readout';
 import { buildPlanBoard } from './planBoard';
+import { INTENT_LABEL, intentOf } from './quiz';
 
 export interface LeadCardInput {
   leadId: string;
@@ -32,7 +33,8 @@ export interface LeadCardInput {
 }
 
 const AGE_LABEL: Record<string, string> = { '18_30': '18–30', '31_40': '31–40', '41_50': '41–50', '51_60': '51–60', '61p': '61+' };
-const INCOME_LABEL: Record<string, string> = { lt25k: '< ₹25k/mo', '25_50k': '₹25–50k/mo', '50k_1l': '₹50k–1L/mo', '1_2l': '₹1–2L/mo', '2lp': '> ₹2L/mo', prefer_not: 'not shared' };
+const PREMIUM_LABEL: Record<string, string> = { lt10k: 'under ₹10k/yr', '10_20k': '₹10–20k/yr', '20_35k': '₹20–35k/yr', '35kp': '₹35k+/yr', unsure: 'not sure' };
+const OTHER_INTEREST_LABEL: Record<string, string> = { yes: 'yes', later: 'maybe later', no: 'no' };
 
 const SITUATION_LINE = { none: 'No cover yet', own: 'Has own policy', group: 'Company cover' } as const;
 const LANG_NAME: Record<string, string> = { en: 'English', hi: 'Hindi', mr: 'Marathi' };
@@ -54,13 +56,17 @@ export function buildLeadCard(i: LeadCardInput): LeadCard {
     a.eldest_age ? `eldest ${a.eldest_age}` : null,
     a.age_band ? `${a.situation === 'none' || a.adults_count !== undefined ? 'age' : 'eldest'} ${AGE_LABEL[a.age_band]}` : null,
     a.parents_age_band ? `parents ${a.parents_age_band === 'u60' ? 'under 60' : a.parents_age_band === '60_70' ? '60–70' : '70+'}` : null,
-    a.income_band ? `take-home ${INCOME_LABEL[a.income_band]}` : null,
     a.city_tier ? (a.city_tier === 'metro' ? 'metro' : 'non-metro') : null,
     a.sum_insured_band ? (a.sum_insured_band === 'unsure' ? 'amount: not sure' : SUM_LABEL[a.sum_insured_band]) : null,
     a.family_in_group_cover ? `family in group cover: ${a.family_in_group_cover.replace('_', ' ')}` : null,
   ].filter(Boolean);
 
+  const intent = intentOf(a);
   const quizParts = [
+    intent ? `intent: ${INTENT_LABEL[intent]}` : null,
+    a.premium_comfort ? `budget ${PREMIUM_LABEL[a.premium_comfort]}` : null,
+    // D3b: interest only, for the advisor to raise — it never changes the advice or the lead score
+    a.other_protection_interest ? `life / critical-illness interest: ${OTHER_INTEREST_LABEL[a.other_protection_interest]}` : null,
     a.room_rent_limit ? `Room rent limit: ${a.room_rent_limit === 'unsure' ? 'not sure' : a.room_rent_limit === 'limit' ? `yes${a.room_rent_note ? ` (${a.room_rent_note})` : ''}` : 'none'}` : null,
     a.policy_age_band ? `policy ${a.policy_age_band === 'unsure' ? 'age not sure' : POLICY_AGE_LABEL[a.policy_age_band]}` : null,
     a.renewal_window ? `renews ${a.renewal_window === 'unsure' ? 'not sure' : RENEWAL_LABEL[a.renewal_window]}` : null,
@@ -111,8 +117,6 @@ export function buildLeadCard(i: LeadCardInput): LeadCard {
         `Health ₹${h.needLakh} L (${h.haveLakh === null ? 'cover amount not sure' : h.haveLakh === 0 ? 'has none' : `has ${h.haveLabel}${h.haveLakh < h.needLakh ? `, short ₹${h.needLakh - h.haveLakh} L` : ''}`})`,
         `${b.healthPick.kind === 'plan' ? 'Pick' : 'Advice'}: ${b.healthPick.title}${b.healthPick.amount ? ` ${b.healthPick.amount}` : ''}`,
         b.parentsPick ? 'Parents: own plan' : null,
-        b.term ? (b.term.priority === 'later' || b.term.priority === 'skip' ? `Term: ${b.term.priority === 'later' ? 'later' : 'not advised'}` : `Term ${b.term.need ?? 'to size on call'}`) : null,
-        b.crisis ? `Crisis ${b.crisis.need ?? 'to size on call'}` : null,
         h.alert?.tone === 'risk' ? h.alert.text : null,
       ].filter(Boolean).join(' · ');
     })(),

@@ -101,5 +101,20 @@ export const TURTLEMINT_PICKS: Record<PlanType, TurtlemintPick> = {
   term_life: { ...EMPTY },
 };
 
+/**
+ * Neutral UTM tags for a Turtlemint plan page. The campaign is not known here; `attributeUrl` stamps the visitor's own
+ * campaign onto the link when it is shown, so quotes on Turtlemint's site are credited to the campaign that brought them.
+ */
 export const withUtm = (url: string, type: PlanType, origin: 'quiz' | 'document') =>
-  `${url}${url.includes('?') ? '&' : '?'}utm_source=whatsapp&utm_medium=cover_check&utm_campaign=cover_fest&utm_content=${origin}_${type}`;
+  `${url}${url.includes('?') ? '&' : '?'}utm_source=cover_check&utm_medium=web&utm_campaign=cover_check&utm_content=${origin}_${type}`;
+
+/** Put the visitor's campaign, channel and variant on an outbound link (utm_campaign / utm_medium / utm_term). */
+export function attributeUrl(url: string, a: { campaignId: string | null; variantId: string | null; channel: string | null } | null | undefined): string {
+  if (!url || !a || (!a.campaignId && !a.variantId && !a.channel)) return url;
+  let u: URL;
+  try { u = new URL(url); } catch { return url; }
+  if (a.campaignId) u.searchParams.set('utm_campaign', a.campaignId);
+  if (a.channel) u.searchParams.set('utm_medium', a.channel);
+  if (a.variantId) u.searchParams.set('utm_term', a.variantId);
+  return u.toString();
+}

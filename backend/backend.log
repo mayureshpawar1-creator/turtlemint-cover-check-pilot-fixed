@@ -1,7 +1,0 @@
-npm error Lifecycle script `dev:api` failed with error:
-npm error workspace @cover-check/backend@0.1.0
-npm error location C:\Users\mayuresh.pawar1_turt\Downloads\turtlemint-cover-check-pilot-fixed\backend
-npm error Missing script: "dev:api"
-npm error
-npm error To see a list of scripts, run:
-npm error   npm run --workspace=@cover-check/backend@0.1.0

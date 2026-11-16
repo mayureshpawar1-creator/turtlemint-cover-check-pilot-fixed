@@ -16,3 +16,4 @@ export * from './policyBoard';
 export * from './policyHealth';
 export * from './whatsappSummary';
 export * from './advice';
+export * from './coverScenarios';

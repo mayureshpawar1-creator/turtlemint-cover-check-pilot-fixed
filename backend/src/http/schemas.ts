@@ -1,7 +1,7 @@
 /** Request body schemas (zod). Field-level rules live in @cover-check/shared/quiz and are re-checked in services. */
 import { z } from 'zod';
 import {
-  AGE_BANDS, INCOME_BANDS, CITY_TIERS, PLAN_TYPES, CONDITION_TAGS, CONSENT_PURPOSES, DISPOSITIONS, EVENT_NAMES, FAMILY_IN_GROUP, HEALTH_CONDITION, JOB_EXIT_COVER, LANGUAGES, MEMBERS,
+  AGE_BANDS, CITY_TIERS, OTHER_PROTECTION_INTEREST, PREMIUM_COMFORT, PLAN_TYPES, CONDITION_TAGS, CONSENT_PURPOSES, DISPOSITIONS, CLIENT_EVENT_NAMES, FAMILY_IN_GROUP, HEALTH_CONDITION, JOB_EXIT_COVER, LANGUAGES, MEMBERS,
   PARENTS_AGE_BANDS, POLICY_AGE_BANDS, POLICY_FACT_KEYS, QUEUES, RENEWAL_WINDOWS, REQUESTED_ACTIONS, ROOM_RENT_LIMIT, SCREEN_IDS,
   SITUATIONS, START_TIMING, SUM_INSURED_BANDS, TOP_CONCERNS, TOPICS, YES_NO,
 } from '@cover-check/shared';
@@ -10,7 +10,6 @@ export const AnswersPatch = z.object({
   situation: z.enum(SITUATIONS),
   members: z.array(z.enum(MEMBERS)).min(1).max(5),
   age_band: z.enum(AGE_BANDS),
-  income_band: z.enum(INCOME_BANDS),
   city_tier: z.enum(CITY_TIERS),
   eldest_age: z.number().int().min(18).max(99),
   children_count: z.number().int().min(0).max(6),
@@ -29,7 +28,9 @@ export const AnswersPatch = z.object({
   renewal_window: z.enum(RENEWAL_WINDOWS),
   personal_policy_besides_group: z.enum(YES_NO),
   start_timing: z.enum(START_TIMING),
-}).partial().strict();
+  premium_comfort: z.enum(PREMIUM_COMFORT),
+  other_protection_interest: z.enum(OTHER_PROTECTION_INTEREST),
+}).partial().strict(); // v5: income_band is no longer accepted
 
 export const SaveScreen = z.object({
   screenId: z.enum(SCREEN_IDS),
@@ -58,8 +59,9 @@ export const Handoff = z.object({
   language: z.enum(LANGUAGES).default('en'),
 });
 
+/** Browser events: interaction names only. Server milestones (SERVER_EVENT_NAMES) are never accepted from a client. */
 export const Event = z.object({
-  name: z.enum(EVENT_NAMES),
+  name: z.enum(CLIENT_EVENT_NAMES),
   screenId: z.enum(SCREEN_IDS).optional(),
   sessionId: z.string().uuid().optional(),
   props: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
@@ -91,9 +93,31 @@ export const Outcome = z.object({
 export const IssueLink = z.object({
   mobile: z.string().regex(/^\+91[6-9]\d{9}$/),
   door: z.enum(['get', 'check', 'company', 'review']),
-  campaignId: z.string().optional(),
-  creativeId: z.string().optional(),
-  templateId: z.string().optional(),
+  campaignId: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,62}$/).optional(),
+  creativeId: z.string().max(64).optional(),
+  variantId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/).optional(),
+  templateId: z.string().max(64).optional(),
+});
+
+/** 1.3 campaign registry. Slugs are lower-case, so they read the same in links, UTM tags and reports. */
+export const CampaignUpsert = z.object({
+  campaignId: z.string().regex(/^[a-z0-9][a-z0-9_-]{1,62}$/),
+  name: z.string().trim().min(2).max(120),
+  objective: z.string().trim().max(400).optional(),
+  audience: z.string().trim().max(400).optional(),
+  channel: z.enum(['whatsapp', 'sms', 'email', 'web', 'partner', 'other']).optional(),
+  waTemplateRef: z.string().trim().max(120).optional(),
+  owner: z.string().trim().max(120).optional(),
+  status: z.enum(['draft', 'live', 'paused', 'ended']).optional(),
+  startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  variants: z.array(z.object({
+    variantId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,31}$/),
+    description: z.string().trim().max(400).optional(),
+    landingLanguage: z.enum(LANGUAGES).optional(),
+    landingHeadline: z.string().trim().max(120).optional(),
+    landingSub: z.string().trim().max(200).optional(),
+  })).max(20).optional(),
 });
 
 // ---------------------------------------------------------------- v2 value layer

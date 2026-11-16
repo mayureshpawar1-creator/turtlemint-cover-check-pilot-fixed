@@ -1,0 +1,46 @@
+# Runs on every push and pull request: typecheck, unit tests, database-backed tests, frontend build, dependency audit.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cover_check_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/cover_check_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/cover_check_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Shared unit tests
+        run: npm test -w shared
+      - name: Apply migrations to the test database
+        run: npm run db:migrate
+      - name: SQL smoke test
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/tests/smoke.sql
+      - name: Backend tests (PostgreSQL)
+        run: npm test -w backend
+      - name: Frontend build
+        run: npm run build -w frontend
+      - name: Dependency audit (runtime)
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true   # report only until the known body-parser/zod advisories are patched

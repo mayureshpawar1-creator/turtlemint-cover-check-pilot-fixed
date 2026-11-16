@@ -8,7 +8,8 @@
  */
 
 export interface Source { id: SourceId; label: string; url: string; published: string }
-export type SourceId = 'irdai_ar_2425' | 'niti_2021' | 'milliman_2026' | 'irdai_mc_2024' | 'turtlemint' | 'cover_rule' | 'pib_vay_vandana' | 'irdai_portability';
+export type SourceId = 'irdai_ar_2425' | 'niti_2021' | 'milliman_2026' | 'irdai_mc_2024' | 'turtlemint' | 'cover_rule' | 'pib_vay_vandana' | 'irdai_portability'
+  | 'nss80_2025' | 'cghs_2025' | 'aon_2026' | 'turtlemint_claims_2026';
 
 export const SOURCES: Record<SourceId, Source> = {
   irdai_ar_2425: {
@@ -27,7 +28,7 @@ export const SOURCES: Record<SourceId, Source> = {
     id: 'turtlemint', label: 'Turtlemint customer data', published: 'internal', url: 'https://www.turtlemintinsurance.com/',
   },
   cover_rule: {
-    id: 'cover_rule', label: 'Cover Check suggestion, based on your family, age, city and income', published: 'v1', url: '',
+    id: 'cover_rule', label: 'Cover Check suggestion, based on your family, age and city', published: 'v1', url: '',
   },
   pib_vay_vandana: {
     id: 'pib_vay_vandana', label: 'PIB, Ayushman Vay Vandana cards for senior citizens 70+', published: 'Dec 2024',
@@ -36,6 +37,22 @@ export const SOURCES: Record<SourceId, Source> = {
   irdai_portability: {
     id: 'irdai_portability', label: 'IRDAI policyholder portal, Portability of health insurance', published: 'IRDAI',
     url: 'https://policyholder.gov.in/portability-of-health-insurance',
+  },
+  turtlemint_claims_2026: {
+    id: 'turtlemint_claims_2026', label: 'Turtlemint health claims, 2022–2026 (internal, aggregate figures only)', published: 'Nov 2026',
+    url: '',
+  },
+  nss80_2025: {
+    id: 'nss80_2025', label: 'NSO, Household Social Consumption: Health, NSS 80th round (Jan–Dec 2025) — press note', published: 'Apr 2026',
+    url: 'https://static.pib.gov.in/WriteReadData/specificdocs/documents/2026/apr/doc2026420852401.pdf',
+  },
+  cghs_2025: {
+    id: 'cghs_2025', label: 'MoHFW, revised CGHS package rates (OM dated 3 Oct 2025, effective 13 Oct 2025)', published: 'Oct 2025',
+    url: 'https://cghs.mohfw.gov.in',
+  },
+  aon_2026: {
+    id: 'aon_2026', label: 'Aon, 2026 Global Medical Trend Rates — India (consultancy estimate)', published: 'Dec 2025',
+    url: 'https://www.aon.com/apac/in-the-press/asia-newsroom/2025/india-outpaces-global-average-with-2026-medical-trend-at-11-5-percent-aon-reports',
   },
   irdai_mc_2024: {
     id: 'irdai_mc_2024', label: 'IRDAI Master Circular on Health Insurance (29 May 2024)', published: 'May 2024',

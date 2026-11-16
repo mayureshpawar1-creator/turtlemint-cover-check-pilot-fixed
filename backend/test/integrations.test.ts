@@ -84,6 +84,7 @@ describe('production adapters', () => {
       NODE_ENV: 'production' as const,
       PUBLIC_BASE_URL: 'https://covercheck.example.com',
       DATABASE_SSL: 'require' as const,
+      DATABASE_SSL_CA: '/etc/ssl/certs/provider-ca.pem',
       LINK_TOKEN_SECRET: 'a-real-production-secret-with-more-than-32-characters',
       AGENT_API_KEY: 'a-real-agent-secret',
       WEBHOOK_SECRET: 'a-real-webhook-secret-long-enough',

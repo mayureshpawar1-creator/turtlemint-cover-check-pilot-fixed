@@ -11,6 +11,8 @@ import { findingRepository } from './findingRepository.js';
 import { handoffRepository } from './handoffRepository.js';
 import { documentRepository } from './documentRepository.js';
 import { valueRepository } from './valueRepository.js';
+import { campaignRepository } from './campaignRepository.js';
+import { webSessionRepository } from './webSessionRepository.js';
 import { eventRepository, leadCardRepository, otpRepository, referenceRepository, whatsappRepository } from './supportRepositories.js';
 
 export const createRepos = (db: Queryable) => ({
@@ -27,5 +29,7 @@ export const createRepos = (db: Queryable) => ({
   whatsapp: whatsappRepository(db),
   leadCards: leadCardRepository(db),
   value: valueRepository(db),
+  campaigns: campaignRepository(db),
+  webSessions: webSessionRepository(db),
 });
 export type Repos = ReturnType<typeof createRepos>;

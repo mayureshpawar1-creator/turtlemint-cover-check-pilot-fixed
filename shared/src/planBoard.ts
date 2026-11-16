@@ -1,6 +1,8 @@
 /**
  * v5 "Your cover plan" — the one-screen result, written for the person in front of us (persona.ts).
- *   health cover you need (vs what you have) · our advice for it · term insurance · crisis (critical illness) cover
+ *   health cover you need (vs what you have) · our advice for it · a plan for parents 60+ when that applies
+ * Life (term) and critical-illness cover are not advised here (decision D3b): a health product shouldn't size them.
+ * Interest in them is asked as an optional last question and passed to the caller only.
  * Each block carries a priority for THIS person — Must have / Good to have / Later / Not for you / Covered — and the
  * honest version: if they don't need something, we say so and why. If they're covered, we say "keep your plan".
  * If they don't know what they have, we ask to read their policy before suggesting anything.
@@ -9,21 +11,14 @@
  * Turtlemint has entered. Nothing is estimated.
  * Rules (VALIDATION REQUIRED — Turtlemint advisory/actuarial team to confirm before go-live):
  *   Health  : suggestedCoverLakh() in advice.ts.
- *   Term    : yearly take-home × TERM_MULTIPLE for the age band, till age 60. Not offered at 61+.
- *   Crisis  : CRISIS_YEARS × yearly take-home (income while you recover), ₹10 L – ₹1 Cr.
- *   Income  : midpoint of the band they picked; "Rather not say" → no figure, the advisor sizes it.
+ *   Budget  : the premium they're comfortable with shapes HOW to reach the cover (base + super top-up), never how much.
  */
 import type { QuizAnswers } from './types';
-import type { AgeBand } from './enums';
 import { suggestedCoverLakh } from './advice';
 import { BAND_LAKH, BENCHMARKS as B, type SourceId } from './benchmarks';
 import { familyLabel, hasParents60, withMembers } from './quiz';
 import { PLAN_DETAILS, PLAN_PAGES, getApprovedTurtlemintPick, withUtm, type PlanType } from './planCatalog';
 import { lifeFacts, personaFor, type Persona, type AdvicePriority } from './persona';
-
-export const TERM_MULTIPLE: Record<Exclude<AgeBand, '61p'>, number> = { '18_30': 15, '31_40': 15, '41_50': 12, '51_60': 10 };
-export const CRISIS_YEARS = 3;
-export const INCOME_MID_MONTHLY: Record<string, number> = { lt25k: 20_000, '25_50k': 37_500, '50k_1l': 75_000, '1_2l': 150_000, '2lp': 250_000 };
 
 export interface PickView {
   /** plan = something to buy · keep = no change needed · check = read their policy first */
@@ -48,14 +43,6 @@ export interface PickView {
   sourceId?: SourceId;
 }
 
-/** For a block we advise against (or say can wait): the honest reason, and when it becomes worth it. */
-export interface Explain { title: string; lines: string[] }
-
-export interface NeedBlock {
-  title: string; need: string | null; caption: string; rule: string;
-  priority: AdvicePriority; explain: Explain | null; pick: PickView;
-}
-
 export interface PlanBoard {
   persona: Persona;
   eyebrow: string;
@@ -68,8 +55,6 @@ export interface PlanBoard {
   };
   healthPick: PickView;
   parentsPick: PickView | null;
-  term: NeedBlock | null;
-  crisis: NeedBlock;
   /** Plans actually suggested (kind = plan), in display order — recorded as "shown". */
   picks: PickView[];
 }
@@ -79,7 +64,6 @@ export function inr(n: number): string {
   if (n >= 10_000_000) return `₹${(+(n / 10_000_000).toFixed(2)).toString()} Cr`;
   return `₹${Math.round(n / 100_000)} L`;
 }
-const roundTerm = (n: number) => (n >= 10_000_000 ? Math.round(n / 2_500_000) * 2_500_000 : Math.round(n / 1_000_000) * 1_000_000);
 const AGE_LABEL: Record<string, string> = { '18_30': '18–30', '31_40': '31–40', '41_50': '41–50', '51_60': '51–60', '61p': '61+' };
 const L = (n: number) => `₹${n} L`;
 
@@ -95,21 +79,6 @@ function plan(type: PlanType, why: string, amount: string | null, reason: string
 const advice = (kind: 'keep' | 'check', title: string, tagline: string, short: [string, string], why: string, points: string[], reason: string, tips: string[] = []): PickView =>
   ({ kind, type: null, title, tagline, points, short, why, tips, amount: null, price: null, insurer: null, product: null, url: '', reason });
 
-export function yearlyIncome(a: QuizAnswers): number | null {
-  const m = a.income_band ? INCOME_MID_MONTHLY[a.income_band] : undefined;
-  return m ? m * 12 : null;
-}
-export function termNeedInr(a: QuizAnswers): number | null {
-  const y = yearlyIncome(a);
-  if (!y || !a.age_band || a.age_band === '61p') return null;
-  return roundTerm(y * TERM_MULTIPLE[a.age_band]);
-}
-export function crisisNeedInr(a: QuizAnswers): number | null {
-  const y = yearlyIncome(a);
-  if (!y) return null;
-  return Math.min(10_000_000, Math.max(1_000_000, Math.round((y * CRISIS_YEARS) / 500_000) * 500_000));
-}
-
 export function buildPlanBoard(input: QuizAnswers, firstName?: string | null): PlanBoard {
   const a = withMembers(input);
   const persona = personaFor(a);
@@ -122,16 +91,16 @@ export function buildPlanBoard(input: QuizAnswers, firstName?: string | null): P
   const band = a.sum_insured_band;
   const have = A ? 0 : band && band !== 'unsure' ? BAND_LAKH[band]! : null;
   const gap = have === null ? null : Math.max(0, need - have);
-  const lowIncome = a.income_band === 'lt25k' || a.income_band === '25_50k';
-  const highIncome = a.income_band === '1_2l' || a.income_band === '2lp';
+  const tightBudget = a.premium_comfort === 'lt10k';
+  const roomyBudget = a.premium_comfort === '35kp';
   const senior = a.age_band === '61p';
   const parents60 = hasParents60(a);
 
   // ---------------------------------------------------------------- what an advisor would add for someone like them
   const healthTips: string[] = [];
-  if (highIncome) healthTips.push('At your income, pick a plan with no room-rent cap — any room you need, and the bill isn’t cut.');
-  if (lowIncome && need > 10) healthTips.push(`Tight budget? A ₹10 L base plan plus a super top-up is usually the cheapest way to reach ${L(need)}.`);
-  if (a.income_band === 'lt25k') healthTips.push(`Also check if your family qualifies for Ayushman Bharat PM-JAY — free cover up to ₹${B.pmjayLakh} L a year.`);
+  if (roomyBudget) healthTips.push('Your budget allows a plan with no room-rent cap — any room you need, and the bill isn’t cut.');
+  if (tightBudget && need > 10) healthTips.push(`On a tight budget, a ₹10 L base plan plus a super top-up is usually the cheapest way to reach ${L(need)}.`);
+  if (tightBudget) healthTips.push(`Also check if your family qualifies for Ayushman Bharat PM-JAY — free cover up to ₹${B.pmjayLakh} L a year.`);
   if (a.city_tier === 'metro') healthTips.push('Hospital bills are higher in metros, so we sized this for a metro hospital.');
   if (a.city_tier === 'other') healthTips.push(`Costs are lower outside the big metros, so ${L(need)} goes further where you live.`);
   if (persona.id === 'couple') healthTips.push('If a baby is in your plans, compare maternity cover and its waiting period before you buy.');
@@ -173,52 +142,6 @@ export function buildPlanBoard(input: QuizAnswers, firstName?: string | null): P
     : null;
   if (parentsPick) parentsPick.sourceId = 'pib_vay_vandana';
 
-  // ---------------------------------------------------------------- term
-  const termInr = termNeedInr(a);
-  const termPriority: AdvicePriority = persona.priorities.term;
-  const term: NeedBlock | null = senior && termPriority === 'skip' && a.age_band === '61p' ? {
-    title: 'Term insurance', need: null, caption: 'Rarely worth it after 60', rule: '', priority: 'skip',
-    explain: { title: 'Skip term insurance', lines: ['After 60, term cover is rarely available or worth the premium.', 'Your health cover and savings do more for you now — and we won’t suggest something you don’t need.'] },
-    pick: plan('term_life', 'Not suggested at your age.', null, 'term_skip'),
-  } : {
-    title: 'Term insurance',
-    need: termInr ? inr(termInr) : null,
-    caption: termPriority === 'later' ? 'When someone depends on you' : termPriority === 'skip' ? 'Few years left to 60' : 'Cover till you’re 60',
-    rule: termInr && a.age_band && a.age_band !== '61p' ? `${TERM_MULTIPLE[a.age_band]}× your yearly income` : 'Sized with your advisor',
-    priority: termPriority,
-    explain: termPriority === 'later'
-      ? { title: 'Term insurance can wait', lines: ['Term cover pays your family if you’re not there — right now, no one depends on your income.',
-          'Revisit it when you marry, have a child or take a home loan. Buying young keeps the premium low for life.'] }
-      : termPriority === 'skip'
-        ? { title: 'Skip term insurance for now', lines: ['With no one depending on your income and only a few years to 60, term cover isn’t worth the premium.',
-            'Put that money into health and crisis cover instead.'] }
-        : null,
-    pick: plan('term_life',
-      f.kids ? `If you’re not there, your family gets ${termInr ? inr(termInr) : 'a lump sum'} — enough to see the kids through school and college.`
-        : persona.dependents ? `If you’re not there, the people who depend on you get ${termInr ? inr(termInr) : 'a lump sum'} to keep going.`
-        : 'Lowest price while you’re young — it matters most once someone depends on you.',
-      termInr ? inr(termInr) : null, 'term_income',
-      [...(persona.dependents ? ['If you have a home or car loan, add what’s left on it to this cover.'] : []),
-        ...(termInr ? [] : ['Your advisor will size this from your income on the call.'])]),
-  };
-
-  // ---------------------------------------------------------------- crisis
-  const crisisInr = crisisNeedInr(a);
-  const crisis: NeedBlock = {
-    title: 'Crisis cover',
-    need: crisisInr ? inr(crisisInr) : null,
-    caption: 'Cancer · heart · stroke',
-    rule: crisisInr ? `${CRISIS_YEARS} years of your income` : 'Sized with your advisor',
-    priority: persona.priorities.crisis,
-    explain: null,
-    pick: plan('critical_illness', `A lump sum on diagnosis — ${crisisInr ? `${inr(crisisInr)}, about ${CRISIS_YEARS} years of income` : 'your income'} while you recover.`,
-      crisisInr ? inr(crisisInr) : null, 'crisis_income',
-      ['It pays even when your health cover pays the hospital — use it for EMIs, rent and recovery.',
-        ...(a.age_band === '41_50' || a.age_band === '51_60' ? ['The risk of serious illness rises with age — this matters more in your 40s and 50s.'] : []),
-        ...(senior ? ['Entry-age limits apply — your advisor will check what’s available for you.'] : []),
-        ...(crisisInr ? [] : ['Your advisor will size this from your income on the call.'])]),
-  };
-
   // ---------------------------------------------------------------- the opening, in their situation
   const headline =
     A ? persona.headline
@@ -234,7 +157,7 @@ export function buildPlanBoard(input: QuizAnswers, firstName?: string | null): P
 
   const city = a.city_tier === 'metro' ? 'Metro' : a.city_tier === 'other' ? 'Other city' : null;
   const profile = [familyLabel(a), a.age_band ? AGE_LABEL[a.age_band] : null, city].filter(Boolean).join(' · ');
-  const all = [healthPick, ...(parentsPick ? [parentsPick] : []), ...(term && (term.priority === 'must' || term.priority === 'good') ? [term.pick] : []), crisis.pick];
+  const all = [healthPick, ...(parentsPick ? [parentsPick] : [])];
 
   return {
     persona,
@@ -247,7 +170,7 @@ export function buildPlanBoard(input: QuizAnswers, firstName?: string | null): P
       priority: healthPick.kind === 'keep' ? 'done' : 'must',
       alert,
     },
-    healthPick, parentsPick, term, crisis,
+    healthPick, parentsPick,
     picks: all.filter((p) => p.kind === 'plan'),
   };
 }

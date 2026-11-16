@@ -1,5 +1,5 @@
 /** Builds the real dependency graph. Shared by the HTTP server and the command-line scripts. */
-import { env } from './config/env.js';
+import { DEV_LOCAL_STORAGE_SECRET, env } from './config/env.js';
 import { pool, withTransaction, type Queryable } from './db/pool.js';
 import { createRepos } from './repositories/index.js';
 import { linkTokenService } from './services/linkTokenService.js';
@@ -44,7 +44,8 @@ export function buildDeps(): Deps {
       })
     : env.STORAGE_DRIVER === 's3'
       ? s3EncryptedStore({ bucket: env.STORAGE_BUCKET, region: env.AWS_REGION, kmsKeyId: env.KMS_KEY_ID ?? '' })
-      : localEncryptedStore(env.STORAGE_DIR, env.LINK_TOKEN_SECRET);
+      // 1.7 (S2): never the link-signing secret. Dev files written before this change used it and won't open.
+      : localEncryptedStore(env.STORAGE_DIR, env.DOCUMENT_ENCRYPTION_KEY ?? DEV_LOCAL_STORAGE_SECRET);
   return {
     repos: createRepos(pool as unknown as Queryable),
     tx: (fn) => withTransaction((client) => fn(createRepos(client))),

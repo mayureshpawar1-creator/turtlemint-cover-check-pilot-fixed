@@ -5,6 +5,8 @@ try { process.loadEnvFile?.('.env'); } catch { /* no .env file — use defaults 
 
 const DEV_SECRET = 'dev-only-secret-change-me-dev-only-secret';
 const DEV_AGENT_KEY = 'dev-agent-key';
+/** 1.7 (S2): the local dev document store has its own key, never the link-signing secret. */
+export const DEV_LOCAL_STORAGE_SECRET = 'dev-only-local-document-store-key-not-for-production';
 
 const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -13,10 +15,17 @@ const Env = z.object({
   PUBLIC_BASE_URL: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string().default('postgres://postgres@localhost:5432/cover_check_dev'),
   DATABASE_SSL: z.enum(['off', 'require']).default('off'),
+  /** Path to the database provider's CA bundle. Required in production so the server certificate is verified (S8). */
+  DATABASE_SSL_CA: z.string().optional(),
+  /** Login used only by `db:migrate` (owns the schema). The app itself runs as a least-privileged login (S6). */
+  MIGRATION_DATABASE_URL: z.string().optional(),
   DB_POOL_MAX: z.coerce.number().default(10),
   /** HMAC key used to sign WhatsApp link tokens (rotate via KMS / secrets manager). */
   LINK_TOKEN_SECRET: z.string().min(32).default(DEV_SECRET),
-  LINK_TOKEN_TTL_DAYS: z.coerce.number().default(14),
+  /** 1.7 (S3): was 14. The link is only needed to start; the browser then holds a session cookie. */
+  LINK_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  /** How long a browser session cookie lasts after the link is opened. */
+  WEB_SESSION_HOURS: z.coerce.number().int().min(1).max(24 * 14).default(72),
   AGENT_API_KEY: z.string().default(DEV_AGENT_KEY),
   NOTICE_VERSION: z.string().default('v1'),
   /** Must be explicitly approved by Turtlemint Advisory/Product/Compliance before personalized quiz rules go live. */
@@ -83,6 +92,9 @@ export function productionProblems(e: EnvT): string[] {
   const p: string[] = [];
   if (e.LINK_TOKEN_SECRET === DEV_SECRET) p.push('LINK_TOKEN_SECRET is the development default — set a random 32+ character secret.');
   if (e.DATABASE_SSL !== 'require') p.push('DATABASE_SSL=require is required for the production database connection.');
+  if (e.DATABASE_SSL === 'require' && !e.DATABASE_SSL_CA) p.push('DATABASE_SSL_CA must point to the database provider’s CA bundle, so the server certificate is verified.');
+  if (e.MIGRATION_DATABASE_URL && e.MIGRATION_DATABASE_URL === e.DATABASE_URL) p.push('DATABASE_URL must be the least-privileged app login, not the migration login (see deploy/db-roles.sql).');
+  if (e.LINK_TOKEN_TTL_DAYS > 14) p.push('LINK_TOKEN_TTL_DAYS must be 14 or less.');
   if (e.AGENT_API_KEY === DEV_AGENT_KEY) p.push('AGENT_API_KEY is the development default — set a random key.');
   if (e.WHATSAPP_PROVIDER === 'console') p.push('WHATSAPP_PROVIDER=console would print messages instead of sending them — use aisensy.');
   if (e.WHATSAPP_PROVIDER === 'aisensy' && !e.AISENSY_API_KEY) p.push('AISENSY_API_KEY is missing.');

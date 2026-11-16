@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { PlanRec } from '@cover-check/shared';
 import { Note, ScreenShell } from '../ui/components';
-import { PlanExploration } from '../screens/PlanExploration';
+import { PlanCard } from '../ui/PlanCard';
 import { IconChat, IconHeadset } from '../ui/icons';
 import { errorOf, useFlow } from '../state/flow';
 import type { EngagementEvent } from '@cover-check/shared/src/engagement';
@@ -74,19 +74,19 @@ export function PlansFit() {
       </div>
       {err ? <Note tone="danger">{err}</Note> : null}
       {!recs && !err ? <p className="muted">Finding options…</p> : null}
-      {/* In-product plan exploration replaces external plan links */}
-      <PlanExploration
-        quizAnswers={s.answers}
-        onClose={() => {
-          engagement.trackEvent('plan_exploration_closed', 'S9a', {
-            action: 'close',
-            planCount: recs?.length ?? 0
+      {recs?.map((r) => <PlanCard key={r.type} rec={r} origin="quiz"
+        onClick={() => {
+          engagement.trackEvent('recommendation_engaged', 'S9a', {
+            recommendationId: r.type,
+            engagementLevel: 'detailed',
+            timeSpentMs: 30000,
+            actionsTaken: ['viewed_details', 'compared'].join(','),
+            interests: ['price', 'coverage', 'benefits'].join(',')
           });
-          go('S9');
         }}
-      />
-      {recs && recs.length === 0 ? <Note>Your answers don't point to a gap. An advisor can still walk you through options.</Note> : null}
-      <p className="disclaimer">Plans and prices are shown on Turtlemint's site when Turtlemint product team has filled approved source evidence. Otherwise, your advisor can discuss options on the call.</p>
+      />)}
+      {recs && recs.length === 0 ? <Note>Your answers don’t point to a gap. An advisor can still walk you through options.</Note> : null}
+      <p className="disclaimer">Plans and prices are shown on Turtlemint’s site. We don’t rank insurers here. Plan details need insurer-approved content.</p>
     </ScreenShell>
   );
 }

@@ -68,6 +68,18 @@ export type YesNo = (typeof YES_NO)[number];
 export const START_TIMING = ['this_month', '1_3m', 'exploring'] as const;
 export type StartTiming = (typeof START_TIMING)[number];
 
+/** v5: yearly premium they are comfortable with (shapes the plan, never the amount of cover we suggest). */
+export const PREMIUM_COMFORT = ['lt10k', '10_20k', '20_35k', '35kp', 'unsure'] as const;
+export type PremiumComfort = (typeof PREMIUM_COMFORT)[number];
+
+/** v5: optional last question. Recorded for the caller only; never changes advice or lead score. */
+export const OTHER_PROTECTION_INTEREST = ['yes', 'later', 'no'] as const;
+export type OtherProtectionInterest = (typeof OTHER_PROTECTION_INTEREST)[number];
+
+/** v5: why they came, derived from answers (not asked). "Just exploring" falls back to first_time. */
+export const INTENTS = ['first_time', 'own_individual', 'own_floater', 'corporate_only', 'corporate_plus_own', 'cover_parents'] as const;
+export type Intent = (typeof INTENTS)[number];
+
 export const LEAD_STATES = ['incomplete', 'data_only', 'consented_warm', 'hand_raised'] as const;
 export type LeadState = (typeof LEAD_STATES)[number];
 
@@ -122,14 +134,39 @@ export const SCREEN_IDS = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S7d'
   'U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8'] as const;
 export type ScreenId = (typeof SCREEN_IDS)[number];
 
-export const EVENT_NAMES = [
-  'link_clicked', 'landing_viewed', 'quiz_started', 'screen_viewed', 'answer_submitted', 'quiz_completed',
-  'readout_viewed', 'capture_submitted', 'otp_sent', 'otp_verified', 'next_action_selected', 'upload_started',
-  'upload_completed', 'extraction_ready', 'facts_confirmed', 'summary_viewed', 'point_opened', 'call_requested',
-  'plans_viewed', 'summary_sent', 'consent_withdrawn',
-  // value layer (v2)
-  'snapshot_viewed', 'checklist_marked', 'recommendation_shown', 'recommendation_clicked', 'recommendation_engaged', 'summary_previewed', 'policy_health_viewed', 'policy_analysis_viewed',
-  // v4 one-screen quiz + cover plan
-  'card_answered', 'plan_details_opened', 'plan_detail_viewed',
+/**
+ * One event contract (roadmap 1.2). Two kinds, never overlapping:
+ *  - SERVER events are business milestones. Only the API records them, inside the same transaction as the change
+ *    they describe, so funnel counts can't be inflated or lost by the browser.
+ *  - CLIENT events are screen interactions the browser sends to POST /events. The API rejects any other name and
+ *    records the rejection in `event_reject` instead of dropping it silently.
+ * The database CHECK on event.name is generated from EVENT_NAMES (migration 009); a test fails if they drift.
+ */
+export const SERVER_EVENT_NAMES = [
+  'link_clicked', 'quiz_started', 'answer_submitted', 'quiz_completed', 'readout_viewed', 'capture_submitted',
+  'otp_sent', 'otp_verified', 'next_action_selected', 'call_requested', 'plans_viewed', 'consent_withdrawn',
+  'upload_started', 'upload_completed', 'extraction_ready', 'facts_confirmed', 'summary_viewed',
+  'summary_previewed', 'summary_sent', 'checklist_marked', 'recommendation_shown', 'recommendation_clicked',
 ] as const;
+export const CLIENT_EVENT_NAMES = [
+  'landing_viewed', 'screen_viewed', 'screen_exited', 'screen_engaged', 'cta_clicked', 'content_toggle', 'tool_used',
+  'card_answered', 'snapshot_viewed', 'point_opened', 'plan_details_opened', 'plan_detail_viewed',
+  'policy_health_viewed', 'policy_analysis_viewed', 'recommendation_engaged', 'recommendations_compared',
+  'gap_insight_interacted', 'otp_failed', 'question_viewed', 'question_answered', 'question_skipped',
+] as const;
+export const EVENT_NAMES = [...SERVER_EVENT_NAMES, ...CLIENT_EVENT_NAMES] as const;
+export type ServerEventName = (typeof SERVER_EVENT_NAMES)[number];
+export type ClientEventName = (typeof CLIENT_EVENT_NAMES)[number];
 export type EventName = (typeof EVENT_NAMES)[number];
+
+const SERVER_EVENT_SET: ReadonlySet<string> = new Set(SERVER_EVENT_NAMES);
+export const isServerEvent = (name: string): name is ServerEventName => SERVER_EVENT_SET.has(name);
+
+/**
+ * What the browser should send for an event a screen tracks. Server milestones are already recorded by the API, so
+ * the browser doesn't resend them (null). A screen's "next action" click is a UI interaction, sent as `cta_clicked`.
+ */
+export function toClientEvent(name: EventName): ClientEventName | null {
+  if (name === 'next_action_selected') return 'cta_clicked';
+  return isServerEvent(name) ? null : name;
+}

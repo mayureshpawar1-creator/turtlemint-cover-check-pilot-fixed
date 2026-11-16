@@ -8,7 +8,8 @@ import { pgSsl } from './ssl.js';
 const root = resolve(import.meta.dirname, '../../../data');
 
 async function main() {
-  const client = new pg.Client({ connectionString: env.DATABASE_URL, ssl: pgSsl() });
+  // 1.7 (S6): migrations run as the schema-owning login; the app runs as a least-privileged one
+  const client = new pg.Client({ connectionString: env.MIGRATION_DATABASE_URL ?? env.DATABASE_URL, ssl: pgSsl() });
   await client.connect();
   // Only one instance migrates at a time (several containers may start together).
   await client.query('SELECT pg_advisory_lock(727001)');

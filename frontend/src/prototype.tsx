@@ -14,7 +14,7 @@ import { LeadCardView } from './agent/LeadCardView';
 import { IconAlert } from './ui/icons';
 
 const PRIYA: QuizAnswers = pruneAnswers({
-  situation: 'own', sum_insured_band: '3_5', adults_count: 2, children_count: 2, parents_count: 0, age_band: '31_40', income_band: '50k_1l', city_tier: 'metro',
+  situation: 'own', sum_insured_band: '3_5', adults_count: 2, children_count: 2, parents_count: 0, age_band: '31_40', premium_comfort: '20_35k', city_tier: 'metro',
 });
 const SCREENS: ScreenId[] = ['S0', 'S1', 'S7', 'S8', 'S9', 'S9a', 'S9b', 'S10', 'U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8'];
 const DOORS: { id: Door; label: string }[] = [

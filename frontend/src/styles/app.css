@@ -632,6 +632,14 @@ a.btn { text-decoration: none; }
 .qc-chip { min-height: 40px; padding: 0 14px; border-radius: var(--r-pill); border: 1.5px solid var(--line); background: var(--surface);
   font-size: 15px; font-weight: 500; color: var(--ink-900); }
 .qc-chip--soft { border-style: dashed; color: var(--ink-600); }
+/* v5: one line of equal chips (age), so the Age card stays short when the parents' row is added */
+.qc-chips--row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; }
+.qc-chips--row .qc-chip { padding: 0 4px; }
+/* v5: the company-cover question joins the Who card; drop stepper sub-lines to keep it on one screen */
+.qc-people--compact small { display: none; }
+.qc-people--compact .qc-person { padding: 6px 0; }
+.qc-people--compact .qc-step button { width: 30px; height: 30px; }
+.qc:has(.qc-people--compact) .qc-upload { display: none; } /* upload is offered again on every other card */
 .qc-chip[aria-checked='true'] { border-color: var(--mint-700); background: var(--mint-700); color: #fff; font-weight: 600; }
 .qc-help { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-600); }
 
@@ -711,6 +719,7 @@ a.btn { text-decoration: none; }
 .pricepill:hover { background: var(--mint-50); }
 .pricepill small { font-weight: 500; color: var(--ink-600); }
 
+.board__also { margin: 10px 2px 0; font-size: var(--fs-small); color: var(--ink-600); }
 .board__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -4px; }
 .board__foot .liveslot { justify-content: flex-start; font-size: 12.5px; }
 .board__foot .btn--ghost { min-height: 36px; font-size: 14px; padding: 0 2px; }

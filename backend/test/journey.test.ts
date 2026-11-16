@@ -38,16 +38,22 @@ describe('Cover Check — Priya end to end', () => {
     assert.throws(() => deps.tokens.verify(t.slice(0, -2) + 'xx'), AppError);
   });
 
-  it('runs the v4 one-screen quiz and validates the whole screen on the server', async () => {
+  it('runs the v5 one-screen quiz and validates the whole screen on the server', async () => {
     sessionId = (await journey.startQuiz(ctx, 'en')).sessionId;
     const priya = { situation: 'own' as const, sum_insured_band: 'unsure' as const, adults_count: 2, children_count: 2, parents_count: 0,
-      age_band: '31_40' as const, income_band: '50k_1l' as const, city_tier: 'metro' as const };
+      age_band: '31_40' as const, premium_comfort: '20_35k' as const, city_tier: 'metro' as const };
     await assert.rejects(journey.saveScreen(ctx, sessionId, 'S1', { ...priya, city_tier: undefined }, 9000), /missing/);
+    // v5: answers the graph doesn't ask for are refused, not silently dropped
+    await assert.rejects(journey.saveScreen(ctx, sessionId, 'S1', { ...priya, income_band: '1_2l' }, 9000),
+      (e: AppError) => e.code === 'VALIDATION' && 'income_band' in (e.details as object));
+    await assert.rejects(journey.saveScreen(ctx, sessionId, 'S1', { ...priya, parents_age_band: '70p' }, 9000), /don’t apply/);
+    await assert.rejects(journey.saveScreen(ctx, sessionId, 'S1', { ...priya, parents_count: 1 }, 9000), /missing/, 'parents need their age');
     const res = await journey.saveScreen(ctx, sessionId, 'S1', priya, 14000);
     assert.equal(res.next, 'S7');
     assert.deepEqual(res.answers.members, ['self', 'spouse', 'children'], 'members derived from the steppers');
     const stored = await deps.repos.quiz.getAnswers(sessionId);
-    assert.deepEqual([stored.adults_count, stored.children_count, stored.parents_count], [2, 2, 0]);
+    assert.deepEqual([stored.adults_count, stored.children_count, stored.parents_count, stored.premium_comfort], [2, 2, 0, '20_35k']);
+    assert.equal(stored.income_band, undefined, 'income is never stored');
   });
 
   it('shows the readout and records what was shown', async () => {
@@ -70,10 +76,10 @@ describe('Cover Check — Priya end to end', () => {
     await value.markChecklist(ctx, 'room_rent', true);
     await assert.rejects(value.markChecklist(ctx, 'cashless', true), /not open/);
     const recs = await value.recommendations(ctx, 'quiz');
-    // not sure of her cover → we ask to read her policy first; nothing health-related is sold blind
-    assert.deepEqual(recs.map((r) => r.type), ['term_life', 'critical_illness'], 'exactly the plans suggested on the board');
-    await value.clickRecommendation(ctx, 'quiz', 'critical_illness', 'advisor');
-    await value.clickRecommendation(ctx, 'quiz', 'term_life', 'turtlemint');
+    // not sure of her cover → we ask to read her policy first; nothing is sold blind, and v5 never adds term or crisis
+    assert.deepEqual(recs.map((r) => r.type), [], 'exactly the plans suggested on the board');
+    await assert.rejects(value.clickRecommendation(ctx, 'quiz', 'term_life', 'turtlemint'), /not shown/);
+    await value.clickRecommendation(ctx, 'quiz', 'super_top_up', 'advisor');
     const preview = await value.summaryPreview(ctx);
     assert.match(preview.text, /^Hi Priya, here is your Cover Check summary/);
     const out = await value.sendSummary(ctx, { contactConsent: false, language: 'en', previewedAt: preview.previewedAt });
@@ -105,11 +111,13 @@ describe('Cover Check — Priya end to end', () => {
     assert.equal(card.firstName, 'Priya');
     assert.equal(card.priority, 'P2');
     assert.match(card.situationLine, /^Has own policy · self \+ spouse \+ 2 children · age 31–40/);
-    assert.match(card.adviceLine, /^A growing family · Health ₹20 L \(cover amount not sure\) · Advice: Check your policy first · Term ₹1.25 Cr · Crisis ₹25 L/);
+    assert.match(card.adviceLine, /^A growing family · Health ₹20 L \(cover amount not sure\) · Advice: Check your policy first · You’re not sure what you have$/);
+    assert.doesNotMatch(`${card.adviceLine} ${card.situationLine} ${card.quizLine}`, /Term|Crisis|take-home/, 'v5: no life/CI sizing, no income');
+    assert.match(card.quizLine, /intent: Own policy \(family floater\) · budget ₹20–35k\/yr/);
     assert.deepEqual(card.toldThem.map((t) => t.ruleId), ['R7']);
     assert.match(card.consentLine, /^Call consent given \d{1,2} \w{3}, /);
     assert.match(card.openingScript, /Rohan from Turtlemint/);
-    assert.match(card.plansLine, /^Term insurance \(opened on Turtlemint\) · Critical illness cover/);
+    assert.equal(card.plansLine, '—', 'no plan was shown: her cover amount is unknown, so we read her policy first');
     assert.match(card.checklistLine, /Room rent \(they ticked it\)/);
   });
 

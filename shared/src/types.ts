@@ -2,6 +2,7 @@ import type {
   AgeBand, IncomeBand, CityTier, ConditionTag, Door, FamilyInGroup, HealthCondition, JobExitCover, Language, LeadState, Member,
   ParentsAgeBand, PolicyAgeBand, Priority, RenewalWindow, RequestedAction, RoomRentLimit, Severity,
   FindingCategory, Situation, StartTiming, SumInsuredBand, Topic, TopConcern, YesNo, DocStatus, DocFailure,
+  PremiumComfort, OtherProtectionInterest,
 } from './enums';
 
 /** Everything Rung 1 can store. All optional because answers arrive one screen at a time. */
@@ -10,6 +11,7 @@ export interface QuizAnswers {
   members?: Member[];
   /** v3 */
   age_band?: AgeBand;
+  /** v3–v4 only. v5 no longer asks or shows it (data minimisation); old rows may still hold it. */
   income_band?: IncomeBand;
   city_tier?: CityTier;
   eldest_age?: number;
@@ -30,6 +32,9 @@ export interface QuizAnswers {
   renewal_window?: RenewalWindow;
   personal_policy_besides_group?: YesNo;
   start_timing?: StartTiming;
+  /** v5 */
+  premium_comfort?: PremiumComfort;
+  other_protection_interest?: OtherProtectionInterest;
 }
 export type AnswerField = keyof QuizAnswers;
 
@@ -77,7 +82,14 @@ export interface Bootstrap {
   firstName?: string;
   answers: QuizAnswers;
   noticeVersion: string;
+  /** 1.3: the campaign this visit came from (null fields when the link carries none). Used to tag outbound links. */
+  attribution: Attribution;
+  /** 1.3: landing copy from the campaign's variant, when one is registered; otherwise the door's default copy. */
+  landing: LandingCopy | null;
 }
+
+export interface Attribution { campaignId: string | null; variantId: string | null; channel: string | null }
+export interface LandingCopy { headline: string; sub: string | null; language: Language }
 
 export interface PolicyFactView {
   key: PolicyFactKey;

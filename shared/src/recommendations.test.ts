@@ -16,7 +16,7 @@ const testCases: Array<{
       situation: 'none',
       members: ['self'],
       age_band: '61p',
-      income_band: '50k_1l',
+      premium_comfort: '20_35k',
       city_tier: 'other'
     },
     expectedPersonaId: 'senior',
@@ -28,7 +28,7 @@ const testCases: Array<{
       situation: 'none',
       members: ['self', 'spouse', 'children'],
       age_band: '51_60',
-      income_band: '1_2l',
+      premium_comfort: '20_35k',
       city_tier: 'metro'
     },
     expectedPersonaId: 'pre_retire',
@@ -40,7 +40,8 @@ const testCases: Array<{
       situation: 'none',
       members: ['self', 'spouse', 'children', 'parents'],
       age_band: '41_50',
-      income_band: '50k_1l',
+      parents_age_band: '70p',
+      premium_comfort: '20_35k',
       city_tier: 'metro'
     },
     expectedPersonaId: 'sandwich',
@@ -52,7 +53,7 @@ const testCases: Array<{
       situation: 'none',
       members: ['self', 'spouse', 'children'],
       age_band: '31_40',
-      income_band: '50k_1l',
+      premium_comfort: '20_35k',
       city_tier: 'other'
     },
     expectedPersonaId: 'family',
@@ -64,7 +65,7 @@ const testCases: Array<{
       situation: 'none',
       members: ['self'],
       age_band: '18_30',
-      income_band: 'lt25k',
+      premium_comfort: '20_35k',
       city_tier: 'other'
     },
     expectedPersonaId: 'starter',
@@ -117,8 +118,9 @@ describe('Persona-based recommendation engine', () => {
       const minimalAnswers: QuizAnswers = {}; // Empty answers
       const recommendations = recommendPlans(minimalAnswers);
 
-      // Should still return recommendations
-      assert.ok(recommendations.length > 0);
+      // v5: with nothing known the board asks to read their policy first — no plan is pushed
+      assert.ok(Array.isArray(recommendations));
+      assert.ok(!recommendations.some((r) => r.type === 'term_life' || r.type === 'critical_illness'));
 
       // Should still have valid PlanRec structure
       for (const rec of recommendations) {

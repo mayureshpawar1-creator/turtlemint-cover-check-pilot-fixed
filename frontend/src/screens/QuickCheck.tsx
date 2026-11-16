@@ -1,11 +1,13 @@
 /**
- * S1 (v4, after the S0 landing) — the whole quiz on ONE screen, like a travel search: stacked cards, one open at a time.
+ * S1 (v5, after the S0 landing) — the whole quiz on ONE screen, like a travel search: stacked cards, one open at a time.
+ * v5: the questions inside a card follow the answers (company cover → who it includes; parents → their age), a budget
+ * card replaces income, and an optional last card asks about life / critical-illness interest (never blocks the plan).
  * A collapsed card is a single row ("Who · You + partner · 2 kids"); tapping a chip fills the card and opens the next.
  * Family is steppers, not typing. Nothing scrolls at 390×690. "See my cover plan" appears the moment every card is answered.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  cardSummary, isCardComplete, isScreenComplete, pruneAnswers, ONE_SCREEN_CARDS, QUIZ_DEFAULTS, INCOME_OPTIONS, S1,
+  cardSummary, isCardComplete, isScreenComplete, pruneAnswers, ONE_SCREEN_CARDS, QUIZ_DEFAULTS, S1, visibleQuestions,
   type QuizAnswers, type QuizCard, type Situation,
 } from '@cover-check/shared';
 import { ScreenShell } from '../ui/components';
@@ -18,6 +20,10 @@ type CardId = QuizCard['id'];
 const order = ONE_SCREEN_CARDS.map((c) => c.id);
 const card = (id: CardId) => ONE_SCREEN_CARDS.find((c) => c.id === id)!;
 const options = (field: string) => { const q = S1.questions.find((x) => x.field === field); return q && q.kind === 'single' ? q.options : []; };
+const shows = (field: keyof QuizAnswers, a: QuizAnswers) => visibleQuestions(S1, a).some((q) => q.field === field);
+const STEPPERS = new Set<string>(['adults_count', 'children_count', 'parents_count']);
+/** An optional card counts as "seen" only once answered, so it still opens once after the required ones. */
+const startsConfirmed = (id: CardId, a: QuizAnswers) => id !== 'who' && isCardComplete(card(id), a) && (!card(id).optional || card(id).fields.some((f) => a[f] !== undefined));
 
 type Kind = 'none' | 'own' | 'group' | 'both';
 const KINDS: { id: Kind; label: string; icon: ReactNode }[] = [
@@ -33,7 +39,7 @@ export function QuickCheck() {
   const { s, api, go, patch, engagement } = useFlow();
   const L = s.language;
   const [a, setA] = useState<QuizAnswers>(() => ({ ...QUIZ_DEFAULTS, ...s.answers }));
-  const [confirmed, setConfirmed] = useState<Set<CardId>>(() => new Set(order.filter((id) => id !== 'who' && isCardComplete(card(id), { ...QUIZ_DEFAULTS, ...s.answers }))));
+  const [confirmed, setConfirmed] = useState<Set<CardId>>(() => new Set(order.filter((id) => startsConfirmed(id, { ...QUIZ_DEFAULTS, ...s.answers }))));
   const [open, setOpen] = useState<CardId | null>(() => order.find((id) => !confirmed.has(id)) ?? null);
   const [nudge, setNudge] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -60,6 +66,17 @@ export function QuickCheck() {
       });
     }
   }, [open, s.answers, engagement.trackEvent]);
+
+  // v5: question_viewed once per question per visit, as its card opens (or as it appears inside an open card)
+  const viewed = useRef(new Set<string>());
+  useEffect(() => {
+    if (!open) return;
+    for (const f of card(open).fields) {
+      if (viewed.current.has(f) || !shows(f, a)) continue;
+      viewed.current.add(f);
+      api.event('question_viewed', 'S1', { field: f, card: open });
+    }
+  }, [open, a, api]);
 
   const allDone = isScreenComplete(S1, a);
   const nextOpen = (from: CardId, done: Set<CardId>, ans: QuizAnswers): CardId | null => {
@@ -90,6 +107,14 @@ export function QuickCheck() {
   const set = (p: Partial<QuizAnswers>, then?: CardId) => {
     const next = { ...a, ...p };
     setA(next); setErr(null);
+
+    // v5 question-level event: which question, which card, how long — never the answer itself
+    for (const field of Object.keys(p) as (keyof QuizAnswers)[]) {
+      if (STEPPERS.has(field) || p[field] === undefined || p[field] === a[field]) continue;
+      const c = ONE_SCREEN_CARDS.find((x) => x.fields.includes(field));
+      api.event('question_answered', 'S1', { field, card: c?.id ?? null, ms: Date.now() - opened.current,
+        unsure: options(field).some((o) => o.value === p[field] && o.unsure) });
+    }
 
     // Track specific field updates for engagement
     Object.keys(p).forEach(field => {
@@ -123,6 +148,10 @@ export function QuickCheck() {
       return;
     }
     setBusy(true); setErr(null);
+
+    // v5: optional questions they saw but left blank
+    for (const q of visibleQuestions(S1, a)) if (!q.required && a[q.field] === undefined && viewed.current.has(q.field))
+      api.event('question_skipped', 'S1', { field: q.field });
 
     // Track quiz completion
     engagement.trackEvent('quiz_completed', 'S1', {
@@ -174,8 +203,8 @@ export function QuickCheck() {
       </>
     }>
       <div className="qc">
-        <h1 className="qc-title">Your cover plan in <span>20 seconds</span></h1>
-        {ONE_SCREEN_CARDS.map((c) => open === c.id
+        <h1 className="qc-title">Your cover plan in <span>30 seconds</span></h1>
+        {ONE_SCREEN_CARDS.filter((c) => !c.optional || allDone || open === c.id).map((c) => open === c.id
           ? <section key={c.id} className="qc-card" aria-labelledby={`qc-${c.id}`}>
               <h2 id={`qc-${c.id}`}>{c.title}</h2>
               <CardBody id={c.id} a={a} set={set} pickKind={pickKind} engagement={engagement} />
@@ -226,24 +255,43 @@ function CardBody({ id, a, set, pickKind, engagement }: { id: CardId; a: QuizAns
     }
     case 'who':
       return (
-        <div className="qc-people">
+        <div className={`qc-people${shows('family_in_group_cover', a) ? ' qc-people--compact' : ''}`}>
           <People label="Adults" sub="You and your partner" value={a.adults_count ?? 1} min={1} max={2} onChange={(n) => set({ adults_count: n })} engagement={engagement} />
           <People label="Children" sub="On your cover" value={a.children_count ?? 0} min={0} max={4} onChange={(n) => set({ children_count: n })} engagement={engagement} />
           <People label="Parents" sub="Yours or in-laws" value={a.parents_count ?? 0} min={0} max={4} onChange={(n) => set({ parents_count: n })} engagement={engagement} />
+          {shows('family_in_group_cover', a) ? (
+            <div className="qc-sub reveal">
+              <span className="qc-sub__label">Does your company cover include them?</span>
+              <Chips field="family_in_group_cover" value={a.family_in_group_cover} onPick={(v) => set({ family_in_group_cover: v as QuizAnswers['family_in_group_cover'] })} engagement={engagement} />
+            </div>
+          ) : null}
         </div>
       );
     case 'age':
-      return <Chips field="age_band" value={a.age_band} onPick={(v) => set({ age_band: v as QuizAnswers['age_band'] }, 'age')} engagement={engagement} />;
-    case 'income':
       return (
         <>
-          <div className="qc-chips" role="radiogroup" aria-label="Monthly take-home">
-            {INCOME_OPTIONS.map((o) => (
-              <button key={o.value} role="radio" aria-checked={a.income_band === o.value} className={`qc-chip${o.unsure ? ' qc-chip--soft' : ''}`}
-                onClick={() => set({ income_band: o.value as QuizAnswers['income_band'] }, 'income')}>{o.label}</button>
-            ))}
-          </div>
-          <p className="qc-help"><IconLock size={13} />Sizes your term and crisis cover. Never shared.</p>
+          {shows('parents_age_band', a) ? <span className="qc-sub__label">Your age</span> : null}
+          <Chips row field="age_band" value={a.age_band} onPick={(v) => set({ age_band: v as QuizAnswers['age_band'] }, 'age')} engagement={engagement} />
+          {shows('parents_age_band', a) ? (
+            <div className="qc-sub reveal">
+              <span className="qc-sub__label">Eldest parent’s age</span>
+              <Chips field="parents_age_band" value={a.parents_age_band} onPick={(v) => set({ parents_age_band: v as QuizAnswers['parents_age_band'] }, 'age')} engagement={engagement} />
+            </div>
+          ) : null}
+        </>
+      );
+    case 'budget':
+      return (
+        <>
+          <Chips field="premium_comfort" value={a.premium_comfort} onPick={(v) => set({ premium_comfort: v as QuizAnswers['premium_comfort'] }, 'budget')} engagement={engagement} />
+          <p className="qc-help">Per year, whole family. Shapes the plan, not the cover amount.</p>
+        </>
+      );
+    case 'more':
+      return (
+        <>
+          <Chips field="other_protection_interest" value={a.other_protection_interest} onPick={(v) => set({ other_protection_interest: v as QuizAnswers['other_protection_interest'] }, 'more')} engagement={engagement} />
+          <p className="qc-help">Optional — your advisor can explain these on the call.</p>
         </>
       );
     case 'city':
@@ -258,9 +306,9 @@ function CardBody({ id, a, set, pickKind, engagement }: { id: CardId; a: QuizAns
   }
 }
 
-function Chips({ field, value, onPick, engagement }: { field: string; value: unknown; onPick(v: string): void; engagement: ReturnType<typeof useFlow>['engagement'] }) {
+function Chips({ field, value, onPick, engagement, row }: { field: string; value: unknown; onPick(v: string): void; engagement: ReturnType<typeof useFlow>['engagement']; row?: boolean }) {
   return (
-    <div className="qc-chips" role="radiogroup">
+    <div className={`qc-chips${row ? ' qc-chips--row' : ''}`} role="radiogroup">
       {options(field).map((o) => (
         <button key={o.value} role="radio" aria-checked={value === o.value} className={`qc-chip${o.unsure ? ' qc-chip--soft' : ''}`} onClick={() => {
           engagement.trackEvent('content_toggle', 'S1', {

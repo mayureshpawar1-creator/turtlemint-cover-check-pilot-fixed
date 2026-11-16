@@ -9,6 +9,7 @@ import type { QuizAnswers } from './types';
 import { BAND_LAKH, BENCHMARKS as B, realValueAfter, type SourceId } from './benchmarks';
 import { SUM_LABEL } from './readout';
 import { suggestedCoverLakh } from './advice';
+import { hasParents60 } from './quiz';
 
 export type CheckStatus = 'good' | 'check' | 'unknown' | 'tip';
 export type NextStepKind = 'upload' | 'advisor' | 'plans';
@@ -40,7 +41,7 @@ export function buildSnapshot(a: QuizAnswers): Snapshot {
   const checklist: ChecklistItem[] = [];
   const band = a.sum_insured_band;
   const bandLakh = band && band !== 'unsure' ? BAND_LAKH[band]! : null;
-  const parents60 = (a.members ?? []).some((m) => m === 'parents' || m === 'parents_in_law') && (a.parents_age_band === '60_70' || a.parents_age_band === '70p');
+  const parents60 = hasParents60(a); // one definition (quiz.ts), shared with the plan board and readout
   const need = suggestedCoverLakh(a);
 
   // ---------------------------------------------------------------- where you stand among insured Indians

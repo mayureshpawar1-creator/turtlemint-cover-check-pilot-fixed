@@ -2,7 +2,7 @@
  * Rung 1 quiz definition. Data, not components: the UI renders these generically and the
  * API validates against the same rules, so wording and "mandatory" can never drift apart.
  */
-import type { Path } from './enums';
+import type { Intent, Path } from './enums';
 import type { AnswerField, QuizAnswers } from './types';
 
 export interface Option {
@@ -49,22 +49,35 @@ const SUM_BANDS: Option[] = [
 ];
 
 
-/** v4 — the whole quiz on ONE screen (Airbnb-style cards). See docs/FLOW_V4.md for what was dropped and why. */
-export const FLOW_VERSION = 'v4';
+/**
+ * v5 — still one screen of cards, now a question graph: what is asked depends on what they told us.
+ * Changes from v4 (docs/IMPLEMENTATION_ROADMAP.md step 1.4):
+ *  · income is no longer asked (data minimisation; the "Never shared" line was not true for the caller card)
+ *  · company cover asks who it includes, when they have family
+ *  · parents get their own age question, so a parents' plan is only suggested for parents 60+ (bug B5)
+ *  · a yearly premium comfort range
+ *  · an optional last question on life / critical-illness interest, recorded for the caller only
+ */
+export const FLOW_VERSION = 'v5';
 
 const AGE_CHIPS: Option[] = [
   { value: '18_30', label: '18–30' }, { value: '31_40', label: '31–40' }, { value: '41_50', label: '41–50' },
   { value: '51_60', label: '51–60' }, { value: '61p', label: '61+' },
 ];
-export const INCOME_OPTIONS: Option[] = [
-  { value: 'lt25k', label: 'Under ₹25k' }, { value: '25_50k', label: '₹25–50k' }, { value: '50k_1l', label: '₹50k–1 L' },
-  { value: '1_2l', label: '₹1–2 L' }, { value: '2lp', label: 'Above ₹2 L' }, { value: 'prefer_not', label: 'Rather not say', unsure: true },
+const PARENT_AGE_CHIPS: Option[] = [{ value: 'u60', label: 'Under 60' }, { value: '60_70', label: '60–70' }, { value: '70p', label: '70+' }];
+export const PREMIUM_OPTIONS: Option[] = [
+  { value: 'lt10k', label: 'Under ₹10k' }, { value: '10_20k', label: '₹10–20k' }, { value: '20_35k', label: '₹20–35k' },
+  { value: '35kp', label: '₹35k+' }, { value: 'unsure', label: 'Not sure yet', unsure: true },
 ];
+export const OTHER_INTEREST_OPTIONS: Option[] = [{ value: 'yes', label: 'Yes' }, { value: 'later', label: 'Maybe later' }, { value: 'no', label: 'No' }];
+
 const hasCover = (a: QuizAnswers) => a.situation === 'own' || a.situation === 'group';
+const hasFamily = (a: QuizAnswers) => (a.adults_count ?? 1) >= 2 || (a.children_count ?? 0) > 0 || (a.parents_count ?? 0) > 0;
+const hasParents = (a: QuizAnswers) => (a.parents_count ?? 0) > 0;
 
 /** One screen, every question a tap. Grouped into cards by ONE_SCREEN_CARDS for the UI. */
 export const S1: QuizScreen = {
-  id: 'S1', step: 1, seconds: 20,
+  id: 'S1', step: 1, seconds: 25,
   title: 'Check your cover',
   questions: [
     { kind: 'single', field: 'situation', required: true, label: 'Health cover today',
@@ -76,22 +89,29 @@ export const S1: QuizScreen = {
     { kind: 'stepper', field: 'adults_count', required: true, min: 1, max: 2, label: 'Adults', helper: 'You and your partner' },
     { kind: 'stepper', field: 'children_count', required: true, min: 0, max: 4, label: 'Children' },
     { kind: 'stepper', field: 'parents_count', required: true, min: 0, max: 4, label: 'Parents', helper: 'Yours or in-laws' },
+    { kind: 'single', field: 'family_in_group_cover', required: true, label: 'Does company cover include them?',
+      showIf: (a) => a.situation === 'group' && hasFamily(a),
+      options: [{ value: 'yes', label: 'Yes, family too' }, { value: 'only_me', label: 'Only me' }, unsure] },
     { kind: 'single', field: 'age_band', required: true, style: 'chips', options: AGE_CHIPS, label: 'Your age' },
-    { kind: 'single', field: 'income_band', required: true, options: INCOME_OPTIONS, label: 'Monthly take-home',
-      helper: 'Sizes your term and crisis cover. Never shared.' },
+    { kind: 'single', field: 'parents_age_band', required: true, style: 'chips', options: PARENT_AGE_CHIPS, label: 'Eldest parent’s age', showIf: hasParents },
+    { kind: 'single', field: 'premium_comfort', required: true, options: PREMIUM_OPTIONS, label: 'Comfortable yearly premium',
+      helper: 'For the whole family. Shapes the plan we suggest, not how much cover you need.' },
     { kind: 'single', field: 'city_tier', required: true, label: 'Where you live',
       options: [{ value: 'metro', label: 'Metro city' }, { value: 'other', label: 'Other city' }] },
+    { kind: 'single', field: 'other_protection_interest', required: false, options: OTHER_INTEREST_OPTIONS,
+      label: 'Also interested in life or critical-illness cover?', helper: 'Optional. An advisor can talk you through it on the call.' },
   ],
 };
 
-export interface QuizCard { id: 'cover' | 'who' | 'age' | 'income' | 'city'; label: string; title: string; fields: AnswerField[] }
+export interface QuizCard { id: 'cover' | 'who' | 'age' | 'budget' | 'city' | 'more'; label: string; title: string; fields: AnswerField[]; optional?: boolean }
 /** The cards of the one-screen quiz, in order. Collapsed, each shows its answer on the right (like "Where · I’m flexible"). */
 export const ONE_SCREEN_CARDS: QuizCard[] = [
   { id: 'cover', label: 'Cover', title: 'Health cover today?', fields: ['situation', 'personal_policy_besides_group', 'sum_insured_band'] },
-  { id: 'who', label: 'Who', title: 'Who’s in your family?', fields: ['adults_count', 'children_count', 'parents_count'] },
-  { id: 'age', label: 'Age', title: 'Your age?', fields: ['age_band'] },
-  { id: 'income', label: 'Income', title: 'Monthly take-home?', fields: ['income_band'] },
+  { id: 'who', label: 'Who', title: 'Who’s in your family?', fields: ['adults_count', 'children_count', 'parents_count', 'family_in_group_cover'] },
+  { id: 'age', label: 'Age', title: 'How old?', fields: ['age_band', 'parents_age_band'] },
+  { id: 'budget', label: 'Budget', title: 'Yearly premium budget?', fields: ['premium_comfort'] },
   { id: 'city', label: 'Where', title: 'Where do you live?', fields: ['city_tier'] },
+  { id: 'more', label: 'Also', title: 'Life or critical-illness cover too?', fields: ['other_protection_interest'], optional: true },
 ];
 
 /** Steppers start here, so "Who" is already a valid answer (just you). */
@@ -112,7 +132,15 @@ export function cardSummary(c: QuizCard, a: QuizAnswers): string | null {
       const kind = a.situation === 'group' ? (a.personal_policy_besides_group === 'yes' ? 'Company + own' : 'Company') : label('situation', a.situation);
       return a.situation !== 'none' && a.sum_insured_band ? `${kind} · ${label('sum_insured_band', a.sum_insured_band)}` : kind;
     }
-    case 'who': return familyLabel(a);
+    case 'who': {
+      const f = familyLabel(a);
+      return a.situation === 'group' && a.family_in_group_cover === 'only_me' ? `${f} · company covers only you` : f;
+    }
+    case 'age': {
+      if (!a.age_band) return null;
+      const you = label('age_band', a.age_band);
+      return hasParents(a) && a.parents_age_band ? `You ${you} · parent ${label('parents_age_band', a.parents_age_band)}` : you;
+    }
     default: { const f = c.fields[0]!; return a[f] === undefined ? null : label(f, a[f]); }
   }
 }
@@ -125,7 +153,7 @@ export function familyLabel(a: QuizAnswers): string {
   return parts.length > 1 && parts[0] === 'Just you' ? ['You', ...parts.slice(1)].join(' · ') : parts.join(' · ');
 }
 
-/** v4 keeps counts; everything downstream still reads `members`, so it is derived here. */
+/** v4+ keeps counts; everything downstream still reads `members`, so it is derived here. */
 export function withMembers(a: QuizAnswers): QuizAnswers {
   if (a.adults_count === undefined && a.children_count === undefined && a.parents_count === undefined) return a;
   const members: QuizAnswers['members'] = ['self'];
@@ -135,9 +163,39 @@ export function withMembers(a: QuizAnswers): QuizAnswers {
   return { ...a, members };
 }
 
-/** Parents get their own plan unless we were told they're under 60 (v3 asked; v4 doesn't). */
+/**
+ * Parents get a plan of their own only when we were told they are 60 or older (fixes B5: v4 assumed every
+ * parent was 60+ because it never asked). Parents under 60, or of unknown age (v4 sessions), stay on the family plan.
+ */
 export const hasParents60 = (a: QuizAnswers) =>
-  (a.members ?? []).some((m) => m === 'parents' || m === 'parents_in_law') && a.parents_age_band !== 'u60';
+  (a.members ?? []).some((m) => m === 'parents' || m === 'parents_in_law') && (a.parents_age_band === '60_70' || a.parents_age_band === '70p');
+
+/** Why they came, derived from what they told us — the caller card and the funnel report use it. */
+export function intentOf(a: QuizAnswers): Intent | null {
+  if (!a.situation) return null;
+  const parents = (a.parents_count ?? 0) > 0;
+  const family = (a.adults_count ?? 1) >= 2 || (a.children_count ?? 0) > 0;
+  if (a.situation === 'none') return 'first_time';
+  if (a.situation === 'group' && a.personal_policy_besides_group !== 'yes') return 'corporate_only';
+  // they already have cover of their own; parents on the list is the new need
+  if (parents) return 'cover_parents';
+  if (a.situation === 'group') return 'corporate_plus_own';
+  return family ? 'own_floater' : 'own_individual';
+}
+export const INTENT_LABEL: Record<Intent, string> = {
+  first_time: 'First-time buyer', own_individual: 'Own policy (individual)', own_floater: 'Own policy (family floater)',
+  corporate_only: 'Company cover only', corporate_plus_own: 'Company + own policy', cover_parents: 'Adding cover for parents',
+};
+
+/**
+ * Fields in a saved patch that the question graph doesn't ask for these answers (e.g. income, or parents' age
+ * with no parents). The server refuses these rather than silently dropping them. `members` is derived, so allowed.
+ */
+export function disallowedFields(patch: QuizAnswers, merged: QuizAnswers): AnswerField[] {
+  const allowed = new Set<AnswerField>(['members']);
+  for (const s of screensForAnswers(merged)) for (const q of visibleQuestions(s, merged)) allowed.add(q.field);
+  return (Object.keys(patch) as AnswerField[]).filter((k) => patch[k] !== undefined && !allowed.has(k));
+}
 
 export function quizScreens(_path?: Path | null): QuizScreen[] {
   return [S1];
@@ -194,7 +252,7 @@ export function pruneAnswers(a: QuizAnswers): QuizAnswers {
   return withMembers(out);
 }
 
-/** A lead's quiz is complete when the one screen is (plus name, pincode, confirmed mobile on S8). */
+/** A lead's quiz is complete when the one screen's required questions are (plus name, pincode, confirmed mobile on S8). */
 export function isQuizCoreComplete(a: QuizAnswers): boolean {
   return isScreenComplete(S1, a) && !!a.situation;
 }

@@ -100,18 +100,9 @@ describe('snapshot (S7)', () => {
 
 describe('plans that fit', () => {
   it('matches plan types to answers and tags links', () => {
-    assert.deepEqual(recommendPlans(sneha).map((r) => r.type), [
-      'family_floater',
-      'term_life',
-      'critical_illness',
-    ]);
-
-    assert.deepEqual(recommendPlans(amit).map((r) => r.type), [
-      'individual',
-      'senior_citizen',
-      'term_life',
-      'critical_illness',
-    ]);
+    // v5 (D3b): health plans only — never term or critical illness
+    assert.deepEqual(recommendPlans(sneha).map((r) => r.type), ['family_floater']);
+    assert.deepEqual(recommendPlans(amit).map((r) => r.type), ['individual', 'senior_citizen']);
 
     for (const r of recommendPlans(sneha)) {
       assert.match(
@@ -121,8 +112,8 @@ describe('plans that fit', () => {
     }
   });
 
-  it('a strong policy still gets a next step', () => {
-    assert.ok(recommendPlans(rashmi).length >= 1);
+  it('a strong policy gets nothing to buy — the board says keep it', () => {
+    assert.deepEqual(recommendPlans(rashmi), []);
   });
 });
 

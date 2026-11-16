@@ -3,6 +3,8 @@ import { env, productionProblems } from './config/env.js';
 import { buildDeps, closeDb } from './wiring.js';
 import { createApp } from './app.js';
 import { retentionService } from './services/retentionService.js';
+import { pool } from './db/pool.js';
+import { leastPrivilegeProblems } from './db/privileges.js';
 
 const problems = productionProblems(env);
 if (problems.length) {
@@ -17,6 +19,7 @@ const app = createApp(deps, {
   webDist: env.WEB_DIST ?? '../frontend/dist',
   webhookSecret: env.WEBHOOK_SECRET,
   plainHttp: !env.PUBLIC_BASE_URL.startsWith('https://'),
+  sessionHours: env.WEB_SESSION_HOURS,
 });
 
 let server: ReturnType<typeof app.listen> | undefined;
@@ -24,6 +27,10 @@ let server: ReturnType<typeof app.listen> | undefined;
 const retention = retentionService(deps);
 
 async function start() {
+  if (env.NODE_ENV === 'production') {
+    const dbProblems = await leastPrivilegeProblems(pool);
+    if (dbProblems.length) throw new Error('Refusing to start in production:\n - ' + dbProblems.join('\n - '));
+  }
   // A production instance must not accept uploads unless its configured bucket exists and is private.
   await deps.store.assertReady?.();
   server = app.listen(env.PORT, () => {

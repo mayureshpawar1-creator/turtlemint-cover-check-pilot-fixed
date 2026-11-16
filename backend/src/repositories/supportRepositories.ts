@@ -8,6 +8,11 @@ export const eventRepository = (db: Queryable) => ({
     await db.query('INSERT INTO event (lead_id, session_id, name, screen_id, props) VALUES ($1,$2,$3,$4,$5)',
       [e.leadId ?? null, e.sessionId ?? null, e.name, e.screenId ?? null, JSON.stringify(e.props ?? {})]);
   },
+  /** A browser event the API refused. Stores only the name, screen and reason — no lead, no props. */
+  async reject(r: { name: string; screenId?: string | null; reason: string }) {
+    await db.query('INSERT INTO event_reject (name, screen_id, reason) VALUES ($1,$2,$3)',
+      [r.name.slice(0, 64), r.screenId ? r.screenId.slice(0, 16) : null, r.reason.slice(0, 200)]);
+  },
 });
 
 export const otpRepository = (db: Queryable) => ({

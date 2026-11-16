@@ -5,10 +5,12 @@
  *
  * Personas come from life stage (age, who depends on you) and are then shaped by the cover they have today.
  * Every claim in these lines is either general and true, or a published figure in benchmarks.ts.
- * VALIDATION REQUIRED: wording with compliance; priorities with Turtlemint's advisory team.
+ * VALIDATION REQUIRED: wording with compliance.
+ * v5: no life (term) or critical-illness priorities — this is a health product (decision D3b).
  */
 import type { QuizAnswers } from './types';
 import { BENCHMARKS as B } from './benchmarks';
+import { hasParents60 } from './quiz';
 
 export type PersonaId = 'starter' | 'solo' | 'couple' | 'family' | 'sandwich' | 'caregiver' | 'midlife' | 'pre_retire' | 'senior';
 /** must = do this now · good = worth adding · later = not yet, and when · skip = not for you · done = already covered */
@@ -25,7 +27,6 @@ export interface Persona {
   /** The line when they already have cover: what matters next for someone like them. */
   noteHave: string;
   dependents: boolean;
-  priorities: { term: AdvicePriority; crisis: AdvicePriority };
 }
 
 export interface LifeFacts { partner: boolean; kids: number; parents: number; age: QuizAnswers['age_band'] }
@@ -43,43 +44,39 @@ export function lifeFacts(a: QuizAnswers): LifeFacts {
 export function personaFor(a: QuizAnswers): Persona {
   const f = lifeFacts(a);
   const dependents = f.partner || f.kids > 0 || f.parents > 0;
-  const P = (id: PersonaId, label: string, headline: string, note: string, noteHave: string, term: AdvicePriority, crisis: AdvicePriority): Persona =>
-    ({ id, label, headline, note, noteHave, dependents, priorities: { term, crisis } });
+  const parents60 = hasParents60(a);
+  const P = (id: PersonaId, label: string, headline: string, note: string, noteHave: string): Persona =>
+    ({ id, label, headline, note, noteHave, dependents });
 
   if (f.age === '61p') return P('senior', 'Cover for your later years', 'Cover built for 60+',
     `A plan built for 60+, with clear co-pay. If you're ${B.vayVandanaAge}+, Ayushman Vay Vandana adds free ₹${B.vayVandanaLakh} L cover.`,
-    `Renew without a break so the waiting you've served carries on. ${B.vayVandanaAge}+? Vay Vandana adds free ₹${B.vayVandanaLakh} L.`,
-    'skip', 'good');
+    `Renew without a break so the waiting you've served carries on. ${B.vayVandanaAge}+? Vay Vandana adds free ₹${B.vayVandanaLakh} L.`);
   if (f.age === '51_60') return P('pre_retire', 'Planning for retirement', 'Make cover outlast your job',
     'Company cover ends at retirement, and buying after 60 costs more. Lock in your own plan now.',
-    'Work cover usually ends at retirement. Your own policy is what carries you past 60.',
-    dependents ? 'good' : 'skip', 'must');
-  if (f.kids && f.parents) return P('sandwich', 'Caring for two generations', 'Two generations, two plans',
+    'Work cover usually ends at retirement. Your own policy is what carries you past 60.');
+  if (f.kids && f.parents && parents60) return P('sandwich', 'Caring for two generations', 'Two generations, two plans',
     'Parents on their own plan: their claims won’t eat into the kids’ cover, or raise your premium.',
-    'Keep parents off the kids’ floater — one big claim can use up everyone’s cover for the year.',
-    'must', 'good');
+    'Keep parents off the kids’ floater — one big claim can use up everyone’s cover for the year.');
   if (f.age === '41_50') return P('midlife', f.kids ? 'A family in its busiest years' : 'Your 40s', 'Bigger cover for your 40s',
-    'Serious illness gets more common in your 40s — a bigger cover and a crisis lump sum matter now.',
-    'Serious illness gets more common in your 40s. Make sure your cover keeps up.',
-    dependents ? 'must' : 'later', 'must');
+    'Serious illness gets more common in your 40s — a bigger cover matters now.',
+    'Serious illness gets more common in your 40s. Make sure your cover keeps up.');
   if (f.kids) return P('family', 'A growing family', 'Protect your kids’ future',
-    'Your kids depend on you. Health cover pays the hospital; term cover keeps their life on track.',
-    'Health cover’s in place. Term cover is what keeps the kids’ life on track if you’re not there.',
-    'must', 'good');
-  if (f.parents) return P('caregiver', 'Looking after your parents', 'A plan for your parents too',
+    'Your kids depend on you. One family plan pays the hospital, so a big bill never touches their future.',
+    'Health cover’s in place. Make sure it grows with the family — costs rise every year.');
+  if (f.parents && parents60) return P('caregiver', 'Looking after your parents', 'A plan for your parents too',
     'Keep your parents on a plan of their own, so their age doesn’t push up your premium.',
-    'If parents share your floater, their claims and age hit your cover. A separate plan fixes both.',
-    'must', 'good');
+    'If parents share your floater, their claims and age hit your cover. A separate plan fixes both.');
+  // B5: parents under 60 (or age not told) are not pushed to a separate senior plan
+  if (f.parents) return P('caregiver', 'Looking after your parents', 'One plan for you and your parents',
+    'Under 60, parents can usually join a family floater — we sized the cover for all of you.',
+    'Check your parents are on your policy. Under 60, a family floater can usually include them.');
   if (f.partner) return P('couple', 'Building a life together', 'One plan for both of you',
     'One floater covers you both. Planning a baby? Buy first — maternity cover has a waiting period.',
-    'Make sure your policy covers you both — and check its maternity waiting period if a baby’s planned.',
-    'good', 'good');
+    'Make sure your policy covers you both — and check its maternity waiting period if a baby’s planned.');
   if (f.age === '18_30') return P('starter', 'Just starting out', 'Start cheap, start now',
     'Premiums are lowest at your age, and waiting periods start the day you buy. Start now.',
-    'Good that you’re covered young. Never let it lapse — every renewal counts towards waiting periods.',
-    'later', 'good');
+    'Good that you’re covered young. Never let it lapse — every renewal counts towards waiting periods.');
   return P('solo', 'Covering yourself', 'Keep bills off your savings',
-    'It’s just you: solid health cover first, a crisis lump sum next. No term insurance yet.',
-    'Your health cover is the base. A crisis lump sum is what protects your savings next.',
-    'later', 'good');
+    'It’s just you: solid cover in your own name keeps hospital bills off your savings.',
+    'Your health cover is the base. Make sure it keeps up as medical costs rise.');
 }

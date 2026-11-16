@@ -5,7 +5,8 @@
  */
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { AdvicePriority, PickView, SourceId } from '@cover-check/shared';
-import { PRIORITY_LABEL } from '@cover-check/shared';
+import { PRIORITY_LABEL, attributeUrl } from '@cover-check/shared';
+import { useFlow } from '../state/flow';
 import { IconAlert, IconCheck, IconClock, IconHeadset, IconInfo, IconLink, IconQuestion, IconSparkle, IconUpload } from './icons';
 import { SourceLine } from './charts';
 
@@ -59,6 +60,7 @@ const Close = ({ onClose }: { onClose(): void }) => <button className="sheet__x"
 
 /** A plan we suggest, or our advice not to buy (keep) / to check first (check). */
 export function PlanSheet({ p, onClose, onAdvisor, onSite, onUpload }: { p: PickView; onClose(): void; onAdvisor(): void; onSite(): void; onUpload(): void }) {
+  const { s } = useFlow();
   return (
     <Sheet onClose={onClose} labelledBy="sheet-title">
       <div className="sheet__head">
@@ -84,7 +86,7 @@ export function PlanSheet({ p, onClose, onAdvisor, onSite, onUpload }: { p: Pick
               : <small>Your price depends on age, city and cover. Your advisor gets you the exact quote on the call.</small>}
           </div>
           <button className="btn btn--primary" onClick={onAdvisor}><IconHeadset size={18} />Talk to advisor about this</button>
-          <a className="btn btn--ghost sheet__site" href={p.url} target="_blank" rel="noopener" onClick={onSite}><IconLink size={15} />View on Turtlemint</a>
+          <a className="btn btn--ghost sheet__site" href={attributeUrl(p.url, s.attribution)} target="_blank" rel="noopener" onClick={onSite}><IconLink size={15} />View on Turtlemint</a>
         </>
       ) : p.kind === 'check' ? (
         <>

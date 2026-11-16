@@ -47,7 +47,7 @@ real policy documents.
 | 6 | Infosec approval: India region, encrypted storage, who can open uploaded files | Infosec |
 | 7 | Telecaller process: who exports the sheet, how often, SLA for P1 leads | Sales ops |
 | 8 | AiSensy API key, stored in the secrets manager (never in Git) | You + DevOps |
-| 9 | **Inbound webhook.** Give your BSP `https://<domain>/api/v1/webhooks/whatsapp?secret=<WEBHOOK_SECRET>` as the incoming-message callback, then reply STOP from a test phone and confirm the lead drops off the next sheet. The payload parser reads the Gupshup shape (`payload.source`, `payload.payload.text`); if you use AiSensy, send one test message and check the log before relying on it. | You + DevOps |
+| 9 | **Inbound webhook.** Give your BSP `https://<domain>/api/v1/webhooks/whatsapp` as the incoming-message callback and have it send `WEBHOOK_SECRET` in the `x-webhook-secret` header (the URL form is refused), then reply STOP from a test phone and confirm the lead drops off the next sheet. The payload parser reads the Gupshup shape (`payload.source`, `payload.payload.text`); if you use AiSensy, send one test message and check the log before relying on it. | You + DevOps |
 | 10 | **Decide the "Reply ADVISOR" line.** The summary template tells people to reply ADVISOR, but no code handles that reply yet. Either remove the line from the template or build the handler (compliance must agree that the reply counts as a request to be called). | You + Compliance |
 
 > **Which BSP?** The code sends through AiSensy by default and also supports Gupshup (`WHATSAPP_PROVIDER=gupshup`, needs

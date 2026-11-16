@@ -1,6 +1,6 @@
 /** Flow state for one person's journey. Screens read and update it through useFlow(). */
 import { createContext, useCallback, useContext, useMemo, useReducer, type Dispatch, type ReactNode } from 'react';
-import type { Bootstrap, CoverSummary, Door, Language, PlanType, QuizAnswers, Readout, ScreenId, Slot } from '@cover-check/shared';
+import type { Attribution, Bootstrap, CoverSummary, Door, LandingCopy, Language, PlanType, QuizAnswers, Readout, ScreenId, Slot } from '@cover-check/shared';
 import type { CoverCheckApi } from '../api/types';
 import { useEngagement } from '../hooks/useEngagement';
 
@@ -24,7 +24,7 @@ export interface FlowState {
   summarySentAt: string | null;
   /** v2: checklist boxes the person ticked on S7. */
   marks: string[];
-  /** v2: plan they asked an advisor about from S9a / U7 â€” pre-fills the call form. */
+  /** v2: plan they asked an advisor about from S9a / U7 — pre-fills the call form. */
   advisorContext: { type: PlanType; title: string } | null;
   /** Where to continue after S8 when a screen needed name + number first. */
   returnTo: Screen | null;
@@ -33,6 +33,9 @@ export interface FlowState {
   result: { action: NextAction; slotLabel?: string; callLanguage?: Language; queued: boolean; at: string } | null;
   docIds: string[];
   summary: CoverSummary | null;
+  /** 1.3: campaign of this visit (tags outbound links) and the variant's landing copy, if any. */
+  attribution: Attribution;
+  landing: LandingCopy | null;
   fatal?: string;
 }
 
@@ -46,13 +49,15 @@ type Action =
 export const initialFlow = (door: Door = 'check'): FlowState => ({
   screen: 'BOOT', history: [], door, language: 'en', maskedMobile: '', mobileVerified: false, slots: [], sessionId: null,
   answers: {}, readout: null, captured: null, summarySentAt: null, marks: [], advisorContext: null, returnTo: null, result: null, docIds: [], summary: null,
+  attribution: { campaignId: null, variantId: null, channel: null }, landing: null,
 });
 
 function reducer(s: FlowState, a: Action): FlowState {
   switch (a.type) {
     case 'boot':
       return { ...s, screen: 'S0', door: a.boot.door, language: a.boot.language, maskedMobile: a.boot.maskedMobile,
-        mobileVerified: a.boot.mobileVerified, slots: a.boot.slots, sessionId: a.boot.sessionId, answers: a.boot.answers };
+        mobileVerified: a.boot.mobileVerified, slots: a.boot.slots, sessionId: a.boot.sessionId, answers: a.boot.answers,
+        attribution: a.boot.attribution ?? { campaignId: null, variantId: null, channel: null }, landing: a.boot.landing ?? null };
     case 'go':
       if (a.screen === s.screen) return s;
       return { ...s, screen: a.screen, history: a.replace ? s.history : [...s.history, s.screen].slice(-30) };
@@ -142,5 +147,5 @@ export function useFlow(): Ctx {
 /** Normalises errors from HttpApi and MockApi into { code, message, details }. */
 export const errorOf = (e: unknown): { code: string; message: string; details?: any } => {
   const b = (e as { body?: { code: string; message: string; details?: unknown } })?.body;
-  return b ?? { code: 'INTERNAL', message: 'Something went wrong. Your answers are saved â€” please try again.' };
+  return b ?? { code: 'INTERNAL', message: 'Something went wrong. Your answers are saved — please try again.' };
 };

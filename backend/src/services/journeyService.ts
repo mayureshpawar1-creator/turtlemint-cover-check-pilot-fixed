@@ -2,7 +2,7 @@
  * Rung 1: link open (S0), quiz (S1–S6), readout (S7), capture (S8), withdrawal (S10).
  */
 import {
-  FLOW_VERSION, buildReadout, isFirstName, isIndianMobile, isPincode, maskMobile, pathOf, pruneAnswers, screensForAnswers, screenErrors,
+  FLOW_VERSION, buildReadout, disallowedFields, isFirstName, isIndianMobile, isPincode, maskMobile, pathOf, pruneAnswers, screensForAnswers, screenErrors,
   unsureCount, PINCODE_PREFIX_DEMO, type AnswerField, type Bootstrap, type CaptureInput, type Language, type QuizAnswers,
   type Readout, type ScreenId,
 } from '@cover-check/shared';
@@ -21,7 +21,7 @@ export const journeyService = (d: Deps) => {
 
   return {
     /** S0: resolve the token to its original lead, log the source. Nothing is asked here. */
-    async openLink(token: string, device: { type?: string; os?: string; browser?: string }, utm?: Record<string, string>): Promise<Bootstrap & { sourceId: string }> {
+    async openLink(token: string, device: { type?: string; os?: string; browser?: string }, utm?: Record<string, string>, referrer?: string): Promise<Bootstrap & { sourceId: string }> {
       const p = d.tokens.verify(token, d.now().getTime());
       const tokenHash = d.tokens.hash(token);
       return d.tx(async (r) => {
@@ -29,17 +29,45 @@ export const journeyService = (d: Deps) => {
         const boundLead = await r.sources.leadForToken(tokenHash);
         const lead = boundLead ? await r.leads.get(boundLead.lead_id) : await r.leads.upsertByMobile(p.m);
         if (!lead) throw new AppError('NOT_FOUND', 'Not found');
+        const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
         const sourceId = await r.sources.insert({ leadId: lead.lead_id, linkTokenHash: tokenHash, door: p.d,
-          waTemplateId: p.t, waMessageId: p.w, campaignId: p.c, creativeId: p.cr, device,
-          utm: { source: utm?.utm_source, medium: utm?.utm_medium, campaign: utm?.utm_campaign } });
+          waTemplateId: p.t, waMessageId: p.w, campaignId: p.c, creativeId: p.cr, variantId: p.v, device,
+          utm: { source: str(utm?.utm_source), medium: str(utm?.utm_medium), campaign: str(utm?.utm_campaign),
+            content: str(utm?.utm_content), term: str(utm?.utm_term) },
+          referrer: str(referrer) });
+        // 1.3: the campaign's channel and the variant's landing copy. An unregistered campaign id still opens normally.
+        const camp = p.c ? await r.campaigns.landing(p.c, p.v ?? null) : null;
         await r.events.log({ name: 'link_clicked', leadId: lead.lead_id, props: { door: p.d } });
         const open = await r.quiz.openSession(lead.lead_id);
         return {
           sourceId, leadId: lead.lead_id, sessionId: open?.session_id ?? null, door: p.d, maskedMobile: maskMobile(lead.mobile),
           mobileVerified: lead.mobile_verified, language: lead.language ?? 'en', firstName: lead.first_name ?? undefined,
           answers: open ? await r.quiz.getAnswers(open.session_id) : {}, noticeVersion: d.config.noticeVersion,
+          attribution: { campaignId: p.c ?? null, variantId: p.v ?? null, channel: camp?.channel ?? null },
+          landing: camp?.landing ?? null,
         };
       });
+    },
+
+    /**
+     * 1.7: the same bootstrap for a browser that already holds a session cookie (page reload, back from the plan site).
+     * Logs no new click and creates no new source row.
+     */
+    async resume(ctx: LeadCtx): Promise<Bootstrap & { sourceId: string }> {
+      if (!ctx.sourceId) throw new AppError('BAD_TOKEN', 'Open the link from WhatsApp again.');
+      const sourceId = ctx.sourceId;
+      const lead = await d.repos.leads.get(ctx.leadId);
+      const src = await d.repos.sources.get(sourceId);
+      if (!lead || !src) throw new AppError('BAD_TOKEN', 'Open the link from WhatsApp again.');
+      const camp = src.campaign_id ? await d.repos.campaigns.landing(src.campaign_id, src.variant_id) : null;
+      const open = await d.repos.quiz.openSession(lead.lead_id);
+      return {
+        sourceId, leadId: lead.lead_id, sessionId: open?.session_id ?? null, door: src.door, maskedMobile: maskMobile(lead.mobile),
+        mobileVerified: lead.mobile_verified, language: lead.language ?? 'en', firstName: lead.first_name ?? undefined,
+        answers: open ? await d.repos.quiz.getAnswers(open.session_id) : {}, noticeVersion: d.config.noticeVersion,
+        attribution: { campaignId: src.campaign_id, variantId: src.variant_id, channel: camp?.channel ?? null },
+        landing: camp?.landing ?? null,
+      };
     },
 
     async logEvent(ctx: LeadCtx, name: Parameters<Deps['repos']['events']['log']>[0]['name'], screenId?: ScreenId, props?: Record<string, unknown>, sessionId?: string) {
@@ -66,7 +94,11 @@ export const journeyService = (d: Deps) => {
         const s = await r.quiz.getSession(sessionId);
         if (!s || s.lead_id !== ctx.leadId) throw new AppError('NOT_FOUND', 'Session not found');
         if (s.completed_ts) throw new AppError('CONFLICT', 'This quiz is already finished');
-        const merged = pruneAnswers({ ...(await r.quiz.getAnswers(sessionId)), ...patch });
+        const raw = { ...(await r.quiz.getAnswers(sessionId)), ...patch };
+        // v5: refuse answers the question graph doesn't ask for these answers (rather than silently dropping them)
+        const extra = disallowedFields(patch, raw);
+        if (extra.length) throw new AppError('VALIDATION', 'Some answers don’t apply', Object.fromEntries(extra.map((f) => [f, 'Not asked for these answers'])));
+        const merged = pruneAnswers(raw);
         const screens = screensForAnswers(merged);
         const idx = screens.findIndex((x) => x.id === screenId);
         if (idx < 0) throw new AppError('VALIDATION', 'Unknown screen for this path');

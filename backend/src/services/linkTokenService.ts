@@ -12,6 +12,7 @@ export interface LinkPayload {
   d: Door;     // door → S0 headline
   c?: string;  // campaign id
   cr?: string; // creative id
+  v?: string;  // campaign variant id (1.3)
   t?: string;  // WhatsApp template id
   w?: string;  // WhatsApp message id
   exp: number; // epoch seconds

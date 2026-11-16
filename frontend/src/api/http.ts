@@ -1,4 +1,9 @@
-/** Real backend client. The link token comes from the WhatsApp button URL: https://…/c/<token> or ?t=<token>. */
+/**
+ * Real backend client. The link token comes from the WhatsApp button URL: https://…/c/<token> or ?t=<token>.
+ * 1.7 (S3): opening the link sets an HttpOnly session cookie; the token is then removed from the address bar, so it
+ * doesn't sit in history, screenshots or referrers. A reload uses the cookie (GET /me). The token stays in memory
+ * as a Bearer fallback for browsers that block cookies.
+ */
 import type { AgentApi, ApiError, CoverCheckApi } from './types';
 
 export class HttpError extends Error {
@@ -9,11 +14,21 @@ export function tokenFromLocation(loc = window.location): string | null {
   return loc.pathname.match(/\/c\/([^/]+)/)?.[1] ?? new URLSearchParams(loc.search).get('t');
 }
 
+/** Keep the path's other parts and any utm_* parameters; drop /c/<token> and ?t=. */
+function stripTokenFromUrl(loc = window.location) {
+  const q = new URLSearchParams(loc.search);
+  q.delete('t');
+  const path = loc.pathname.replace(/\/c\/[^/]+/, '') || '/';
+  const rest = q.toString();
+  window.history.replaceState(window.history.state, '', `${path}${rest ? `?${rest}` : ''}${loc.hash}`);
+}
+
 export function createHttpApi(baseUrl: string, token: string): CoverCheckApi {
   const call = async <T>(method: string, path: string, body?: unknown, isForm = false): Promise<T> => {
     const res = await fetch(`${baseUrl}/api/v1${path}`, {
       method,
-      headers: { authorization: `Bearer ${token}`, ...(body && !isForm ? { 'content-type': 'application/json' } : {}) },
+      credentials: 'include',
+      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(body && !isForm ? { 'content-type': 'application/json' } : {}) },
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     });
     const json = await res.json().catch(() => ({}));
@@ -23,7 +38,12 @@ export function createHttpApi(baseUrl: string, token: string): CoverCheckApi {
   const fire = (path: string, body: unknown) => { void call('POST', path, body).catch(() => undefined); };
 
   return {
-    bootstrap: () => call('GET', `/link/${encodeURIComponent(token)}${window.location.search}`),
+    bootstrap: async () => {
+      if (!token) return call('GET', '/me');
+      const boot = await call<Awaited<ReturnType<CoverCheckApi['bootstrap']>>>('GET', `/link/${encodeURIComponent(token)}${window.location.search}`);
+      stripTokenFromUrl();
+      return boot;
+    },
     event: (name, screenId, props) => fire('/events', { name, screenId, props }),
     startQuiz: (language) => call('POST', '/quiz/sessions', { language }),
     saveScreen: (id, screenId, answers, timeOnScreenMs) => call('PUT', `/quiz/sessions/${id}`, { screenId, answers, timeOnScreenMs }),

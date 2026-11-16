@@ -2,23 +2,23 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAdvice, buildWhatsAppSummary, buildReadout, suggestedCoverLakh, buildLeadCard, type QuizAnswers } from './index';
 
-const ravi: QuizAnswers = { situation: 'none', members: ['self', 'spouse', 'parents'], age_band: '31_40', parents_age_band: '60_70', income_band: '50k_1l', city_tier: 'metro' };
+const ravi: QuizAnswers = { situation: 'none', members: ['self', 'spouse', 'parents'], age_band: '31_40', parents_age_band: '60_70', premium_comfort: '20_35k', city_tier: 'metro' };
 const sneha: QuizAnswers = { situation: 'group', members: ['self', 'spouse'], age_band: '18_30', sum_insured_band: '3_5', family_in_group_cover: 'only_me', personal_policy_besides_group: 'no' };
 const rashmi: QuizAnswers = { situation: 'own', members: ['self', 'spouse'], age_band: '31_40', sum_insured_band: '25p', room_rent_limit: 'no_limit', renewal_window: '1_3m' };
 
 describe('advice (v3 one-screen result)', () => {
-  it('no cover: the big picture with a suggested amount, structure and months of pay', () => {
+  it('no cover: the big picture with a suggested amount and structure (v5: no months-of-pay chart)', () => {
     const a = buildAdvice(ravi);
     assert.equal(a.kind, 'needs');
     assert.equal(a.suggestedLakh, 20); // 10 + family 5 + metro 5
     assert.deepEqual(a.structure.map((p) => p.label), ['Family floater', 'Super top-up', 'Senior plan for parents']);
-    assert.deepEqual(a.bills!.map((b) => b.months), [3, 7, 13]); // ₹2/5/10 L ÷ ₹75k
-    assert.match(a.gaps[0]!.impact, /7 months of your pay/);
-  });
-  it('prefer-not income: no months chart, still advice', () => {
-    const a = buildAdvice({ ...ravi, income_band: 'prefer_not' });
     assert.equal(a.bills, null);
-    assert.ok(a.gaps.length >= 2);
+    assert.match(a.gaps[0]!.impact, /come out of your savings/);
+  });
+  it('an old v4 answer with income changes nothing (income is no longer an input)', () => {
+    const a = buildAdvice({ ...ravi, income_band: '2lp' });
+    assert.deepEqual([a.suggestedLakh, a.bills], [buildAdvice(ravi).suggestedLakh, null]);
+    assert.equal(suggestedCoverLakh({ members: ['self'], city_tier: 'metro', income_band: '2lp' }), suggestedCoverLakh({ members: ['self'], city_tier: 'metro' }));
   });
   it('company only: wins first, then gaps with rupee consequences', () => {
     const a = buildAdvice(sneha);
@@ -35,7 +35,7 @@ describe('advice (v3 one-screen result)', () => {
   });
   it('cover rule', () => {
     assert.equal(suggestedCoverLakh({ members: ['self'], city_tier: 'other', age_band: '18_30' }), 10);
-    assert.equal(suggestedCoverLakh({ members: ['self', 'children'], city_tier: 'metro', age_band: '41_50', income_band: '2lp' }), 35);
+    assert.equal(suggestedCoverLakh({ members: ['self', 'children'], city_tier: 'metro', age_band: '41_50' }), 25); // 10 + 5 + 5 + 5
   });
   it('WhatsApp params are single-line and the preview is the filled template', () => {
     for (const a of [ravi, sneha, rashmi]) {
